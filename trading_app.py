@@ -13,8 +13,6 @@ st.set_page_config(page_title="Life & Trading OS Pro", layout="wide", page_icon=
 # --- ESTILOS CSS ADAPTATIVOS (DARK/LIGHT MODE) ---
 st.markdown("""
 <style>
-    /* Usamos variables de Streamlit para que se adapte al tema del usuario */
-    
     /* TARJETAS KPI */
     .kpi-card {
         background-color: var(--secondary-background-color);
@@ -38,7 +36,7 @@ st.markdown("""
     .kpi-value {
         font-size: 24px;
         font-weight: 800;
-        color: var(--text-color); /* Por defecto, luego lo sobrescribimos con rojo/verde */
+        color: var(--text-color);
     }
     
     /* BARRAS DE PROGRESO */
@@ -57,13 +55,12 @@ st.markdown("""
         text-transform: uppercase;
     }
     
-    /* CELDAS DEL CALENDARIO PNL */
     .pnl-cell {
         height: 100px;
         border-radius: 12px;
         border: 1px solid rgba(128, 128, 128, 0.2);
         margin: 4px;
-        background-color: var(--secondary-background-color); /* Se adapta al tema */
+        background-color: var(--secondary-background-color);
         display: flex;
         flex-direction: column;
         justify-content: space-between;
@@ -91,14 +88,12 @@ st.markdown("""
         margin-bottom: 10px;
     }
     
-    /* Colores específicos para Win/Loss (brillantes para que se vean en dark mode) */
     .win-day { border: 1px solid #00C076; background-color: rgba(0, 192, 118, 0.1); }
     .loss-day { border: 1px solid #FF4D4D; background-color: rgba(255, 77, 77, 0.1); }
     
     .win-text { color: #00C076; }
     .loss-text { color: #FF4D4D; }
     
-    /* CELDAS DE AGENDA */
     .calendar-day-agenda {
         border: 1px solid rgba(128, 128, 128, 0.2);
         background-color: var(--secondary-background-color);
@@ -116,7 +111,7 @@ st.markdown("""
         border-radius: 4px;
         margin-bottom: 2px;
         font-size: 10px;
-        color: white; /* Texto dentro de etiquetas siempre blanco */
+        color: white;
         display: block;
         font-weight: bold;
     }
@@ -173,21 +168,13 @@ menu = st.sidebar.radio("Navegación", ["📊 Dashboard & Meta", "🎯 Objetivos
 
 # --- UTILS ---
 def kpi_card(title, value, type="currency", color_logic=True):
-    # Lógica de color solo para el número, el resto hereda del tema
     color_style = ""
     if color_logic and isinstance(value, (int, float)):
         if value > 0: color_style = "color: #00C076;"
         elif value < 0: color_style = "color: #FF4D4D;"
         else: color_style = "color: #F7B924;"
-    
     display = f"${value:,.2f}" if type == "currency" else f"{value:.1f}%" if type == "percent" else f"{value}"
-    
-    st.markdown(f"""
-    <div class="kpi-card">
-        <div class="kpi-title">{title}</div>
-        <div class="kpi-value" style="{color_style}">{display}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""<div class="kpi-card"><div class="kpi-title">{title}</div><div class="kpi-value" style="{color_style}">{display}</div></div>""", unsafe_allow_html=True)
 
 # ==============================================================================
 # 📊 TAB 1: DASHBOARD
@@ -475,11 +462,14 @@ elif menu == "🏦 Cuentas & Historial":
                 t = c3.selectbox("Tipo", ["Examen", "Funded"])
                 c4, c5, c6 = st.columns(3)
                 bi = c4.number_input("Balance Inicial", value=50000.0)
-                bo = c5.number_input("Balance Objetivo", value=53000.0)
-                do = c6.number_input("Días Winning Objetivo", value=5)
-                cost = st.number_input("Coste ($)", value=0.0)
+                ba = c5.number_input("Balance Actual (Por si ya vas ganando)", value=50000.0)
+                bo = c6.number_input("Balance Objetivo", value=53000.0)
+                c7, c8 = st.columns(2)
+                do = c7.number_input("Días Winning Objetivo", value=5)
+                cost = c8.number_input("Coste ($)", value=0.0)
+                
                 if st.form_submit_button("Crear Cuenta"):
-                    new_acc = pd.DataFrame([{'Nombre': n, 'Empresa': e, 'Tipo': t, 'Balance_Inicial': bi, 'Balance_Actual': bi, 'Balance_Objetivo': bo, 'Dias_Objetivo': do, 'Costo': cost, 'Estado': 'Activa', 'Fecha_Creacion': date.today()}])
+                    new_acc = pd.DataFrame([{'Nombre': n, 'Empresa': e, 'Tipo': t, 'Balance_Inicial': bi, 'Balance_Actual': ba, 'Balance_Objetivo': bo, 'Dias_Objetivo': do, 'Costo': cost, 'Estado': 'Activa', 'Fecha_Creacion': date.today()}])
                     df_accounts = pd.concat([df_accounts, new_acc], ignore_index=True)
                     save_data(df_accounts, 'accounts')
                     if cost > 0:
