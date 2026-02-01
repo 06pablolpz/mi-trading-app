@@ -1,14 +1,34 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime, date
 import os
-from datetime import datetime
 
-# --- CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(page_title="Trading Plan & Journal", layout="wide", page_icon="📈")
+# --- CONFIGURACIÓN DE PÁGINA (ESTILO WIDE) ---
+st.set_page_config(page_title="Trading Pro Dashboard", layout="wide", page_icon="📈")
+
+# --- ESTILOS CSS PERSONALIZADOS (PARECIDO A LA FOTO) ---
+st.markdown("""
+<style>
+    .metric-card {
+        background-color: #1e1e1e;
+        border: 1px solid #333;
+        padding: 20px;
+        border-radius: 10px;
+        color: white;
+    }
+    .stMetric {
+        background-color: #0E1117; 
+        padding: 10px;
+        border-radius: 5px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # --- GESTIÓN DE DATOS ---
-JOURNAL_FILE = 'trading_journal.csv'
-FINANCE_FILE = 'trading_finances.csv'
+JOURNAL_FILE = 'trading_journal_v2.csv'
+ACCOUNTS_FILE = 'prop_firms.csv'
 
 def load_data(file, columns):
     if not os.path.exists(file):
@@ -18,163 +38,229 @@ def load_data(file, columns):
 def save_data(df, file):
     df.to_csv(file, index=False)
 
-# Cargar datos
-df_journal = load_data(JOURNAL_FILE, ['Fecha', 'Activo', 'Estrategia', 'Resultado', 'PnL', 'Notas'])
-df_finance = load_data(FINANCE_FILE, ['Fecha', 'Tipo', 'Concepto', 'Monto'])
+# Cargar Dataframes
+df_journal = load_data(JOURNAL_FILE, ['Fecha', 'Cuenta', 'Activo', 'Estrategia', 'Resultado', 'PnL', 'Emociones', 'Screenshot', 'Notas'])
+df_accounts = load_data(ACCOUNTS_FILE, ['Nombre', 'Empresa', 'Tamaño', 'Balance_Inicial', 'Objetivo_Mensual', 'Fecha_Payout'])
 
-# --- BARRA LATERAL (REGLAS DIARIAS) ---
-st.sidebar.header("🛡️ Gestión de Riesgo Diaria")
-st.sidebar.markdown("---")
+# --- SIDEBAR (NAVEGACIÓN) ---
+st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2910/2910312.png", width=50)
+st.sidebar.title("Trader OS")
+menu = st.sidebar.radio("Navegación", ["📊 Dashboard", "✅ Checklist Ejecución", "📓 Diario de Trades", "🏦 Cuentas & Payouts"])
 
-daily_loss = st.sidebar.number_input("Pérdida actual hoy ($)", min_value=0.0, value=0.0)
-trading_hours = st.sidebar.number_input("Horas operando", min_value=0.0, value=0.0)
-
-bloqueo = False
-if daily_loss >= 500:
-    st.sidebar.error("❌ STOP: Límite de pérdida ($500) alcanzado.")
-    bloqueo = True
-if trading_hours >= 3:
-    st.sidebar.error("❌ STOP: Límite de tiempo (3h) alcanzado.")
-    bloqueo = True
-
-st.sidebar.markdown("---")
-st.sidebar.info("Recuerda: Solo Trades A+")
-
-# --- PESTAÑAS PRINCIPALES ---
-tab1, tab2, tab3, tab4 = st.tabs(["🚦 Validador de Trade", "📖 Diario de Trades", "💰 Finanzas/Gastos", "📊 Dashboard"])
-
-# --- TAB 1: VALIDADOR (CHECKLIST DEL PDF) ---
-with tab1:
-    st.header("Checklist de Ejecución")
+# ==============================================================================
+# 📊 PESTAÑA 1: DASHBOARD (ESTILO PRO)
+# ==============================================================================
+if menu == "📊 Dashboard":
+    st.title("Good Morning, Trader!")
     
-    if bloqueo:
-        st.error("⛔ NO PUEDES OPERAR HOY: Has violado tus reglas diarias.")
+    if df_journal.empty:
+        st.info("Registra tu primer trade en el Diario para ver estadísticas.")
     else:
-        scenario = st.selectbox("¿Qué escenario estás viendo?", 
-                                ["Selecciona...", "RANGOS", "CANALES ANCHOS", "CANALES ESTRECHOS"])
+        # 1. KPIs PRINCIPALES (FILA SUPERIOR)
+        total_pnl = df_journal['PnL'].sum()
+        win_count = len(df_journal[df_journal['Resultado'] == 'WIN'])
+        total_trades = len(df_journal)
+        win_rate = (win_count / total_trades * 100) if total_trades > 0 else 0
+        avg_win = df_journal[df_journal['Resultado'] == 'WIN']['PnL'].mean() if win_count > 0 else 0
         
-        decision = False
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Net P&L ($)", f"${total_pnl:,.2f}", delta_color="normal")
+        col2.metric("Win Rate", f"{win_rate:.1f}%")
+        col3.metric("Total Trades", total_trades)
+        col4.metric("Avg. Win Trade", f"${avg_win:,.2f}")
+
+        # 2. GRÁFICOS
+        col_chart1, col_chart2 = st.columns(2)
         
-        if scenario == "RANGOS":
-            st.subheader("Reglas de Rango")
-            c1 = st.checkbox("¿Tiene mínimo 3 patas (extremos)?")
-            c2 = st.checkbox("¿Entrada en extremo (NO CENTRADO)?")
-            c3 = st.checkbox("¿Patrón H2/L2 claro?")
-            c4 = st.checkbox("¿Conteo de impulsos favorable?")
+        with col_chart1:
+            st.subheader("Curva de Equidad (Acumulada)")
+            df_journal['Fecha'] = pd.to_datetime(df_journal['Fecha'])
+            df_sorted = df_journal.sort_values('Fecha')
+            df_sorted['Acumulado'] = df_sorted['PnL'].cumsum()
             
-            if c1 and c2 and c3 and c4:
-                st.success("✅ SETUP VÁLIDO: Busca 2:1. Salir si en 10 velas no rompe.")
-                decision = True
-            else:
-                st.warning("Completa el checklist.")
-
-        elif scenario == "CANALES ANCHOS":
-            st.subheader("Reglas de Canales Anchos")
-            c1 = st.checkbox("¿A favor de tendencia (Pata Larga)?")
-            c2 = st.checkbox("¿Pullback de calidad (2-3 patas)?")
-            c3 = st.checkbox("¿H2/L2 visible?")
+            fig_equity = px.area(df_sorted, x='Fecha', y='Acumulado', color_discrete_sequence=['#00CC96'])
+            fig_equity.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fig_equity, use_container_width=True)
             
-            if c1 and c2 and c3:
-                st.success("✅ SETUP VÁLIDO: Stop en pata anterior. Mover SL con nuevos mínimos/máximos.")
-                decision = True
-            else:
-                st.warning("Completa el checklist.")
-
-        elif scenario == "CANALES ESTRECHOS":
-            st.subheader("Reglas de Canales Estrechos")
-            c1 = st.checkbox("¿Retroceso al 50%?")
-            c2 = st.checkbox("¿Pullback duró 3 velas o menos?")
-            c3 = st.checkbox("NO hay 3 velas fuertes en contra")
-            c4 = st.checkbox("NO hay rechazo con mecha grande")
+        with col_chart2:
+            st.subheader("PnL Diario")
+            # Agrupar por día
+            daily_pnl = df_journal.groupby('Fecha')['PnL'].sum().reset_index()
+            daily_pnl['Color'] = daily_pnl['PnL'].apply(lambda x: 'green' if x >= 0 else 'red')
             
-            if c1 and c2 and c3 and c4:
-                st.success("✅ SETUP VÁLIDO: Usar Limit Order. Buscar 1:1 al anterior máximo.")
-                decision = True
-            else:
-                st.warning("Completa el checklist.")
+            fig_bar = go.Figure(data=[go.Bar(
+                x=daily_pnl['Fecha'],
+                y=daily_pnl['PnL'],
+                marker_color=daily_pnl['Color']
+            )])
+            fig_bar.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fig_bar, use_container_width=True)
 
-        # Confirmación ICT (Auxiliar)
-        if decision:
-            st.markdown("---")
-            st.write("🔍 **Confirmación Extra (ICT Concepts):**")
-            ict = st.checkbox("¿Reacción en FVG o Zona de Liquidez?")
-            if ict:
-                st.success("💎 TRADE A+ CONFIRMADO")
+        # 3. ESTADÍSTICAS POR CUENTA
+        st.subheader("Rendimiento por Cuenta")
+        if not df_journal.empty:
+            pnl_by_account = df_journal.groupby('Cuenta')['PnL'].sum().reset_index()
+            st.dataframe(pnl_by_account, use_container_width=True)
 
-# --- TAB 2: DIARIO DE TRADES ---
-with tab2:
-    st.header("Registrar Nuevo Trade")
-    with st.form("journal_form"):
-        col1, col2 = st.columns(2)
-        date_trade = col1.date_input("Fecha", datetime.today())
-        asset = col2.text_input("Activo (ej. NQ, ES, EURUSD)")
-        strat = st.selectbox("Estrategia", ["Rangos", "Canales Anchos", "Canales Estrechos", "Otro"])
-        result = st.selectbox("Resultado", ["WIN", "LOSS", "BE"])
-        pnl = st.number_input("PnL ($)", step=10.0)
-        notes = st.text_area("Notas / Errores / Emociones")
-        
-        submitted = st.form_submit_button("Guardar Trade")
-        
-        if submitted:
-            new_trade = pd.DataFrame({
-                'Fecha': [date_trade], 'Activo': [asset], 'Estrategia': [strat], 
-                'Resultado': [result], 'PnL': [pnl], 'Notas': [notes]
-            })
-            df_journal = pd.concat([df_journal, new_trade], ignore_index=True)
-            save_data(df_journal, JOURNAL_FILE)
-            st.success("Trade guardado correctamente.")
-
-    st.subheader("Histórico Reciente")
-    st.dataframe(df_journal.tail(10))
-
-# --- TAB 3: FINANZAS ---
-with tab3:
-    st.header("Control de Gastos y Payouts")
-    with st.form("finance_form"):
-        col1, col2 = st.columns(2)
-        f_date = col1.date_input("Fecha", datetime.today())
-        f_type = col2.selectbox("Tipo", ["Gasto - Prop Firm", "Gasto - Software", "Gasto - Educación", "INGRESO - Payout"])
-        f_concept = st.text_input("Concepto (ej. Prueba Apex, TradingView Pro)")
-        f_amount = st.number_input("Monto ($)", min_value=0.0, step=10.0)
-        
-        # Ajustar signo según tipo
-        submitted_fin = st.form_submit_button("Registrar Movimiento")
-        
-        if submitted_fin:
-            final_amount = f_amount if "INGRESO" in f_type else -f_amount
-            new_fin = pd.DataFrame({
-                'Fecha': [f_date], 'Tipo': [f_type], 'Concepto': [f_concept], 'Monto': [final_amount]
-            })
-            df_finance = pd.concat([df_finance, new_fin], ignore_index=True)
-            save_data(df_finance, FINANCE_FILE)
-            st.success("Movimiento financiero guardado.")
-
-    st.subheader("Movimientos")
-    st.dataframe(df_finance)
-
-# --- TAB 4: DASHBOARD ---
-with tab4:
-    st.header("Estadísticas Generales")
+# ==============================================================================
+# ✅ PESTAÑA 2: CHECKLIST (DINÁMICO)
+# ==============================================================================
+elif menu == "✅ Checklist Ejecución":
+    st.header("⚡ Antes de Disparar")
     
-    if not df_journal.empty:
-        # Métricas principales
-        total_pnl_trades = df_journal['PnL'].sum()
-        total_payouts_fees = df_finance['Monto'].sum() if not df_finance.empty else 0
-        net_profit = total_pnl_trades + total_payouts_fees # Ojo: PnL trades es hipotético si es cuenta de fondeo, ajustar según realidad
-        
-        col1, col2, col3 = st.columns(3)
-        col1.metric("PnL Bruto (Trades)", f"${total_pnl_trades:,.2f}")
-        col2.metric("Balance Financiero (Caja)", f"${total_payouts_fees:,.2f}")
-        col3.metric("Win Rate", f"{(len(df_journal[df_journal['Resultado']=='WIN']) / len(df_journal) * 100):.1f}%")
+    # Selector de Cuenta y Estrategia
+    col1, col2 = st.columns(2)
+    with col1:
+        if not df_accounts.empty:
+            account_select = st.selectbox("¿En qué cuenta vas a operar?", df_accounts['Nombre'].unique())
+        else:
+            st.warning("Ve a 'Cuentas' y crea una primero.")
+            account_select = "Sin Cuenta"
+            
+    with col2:
+        strategy = st.selectbox("Selecciona Estrategia", ["RANGOS", "CANALES ANCHOS", "CANALES ESTRECHOS"])
 
-        # Gráfica de PnL Acumulado (Trades)
-        st.subheader("Curva de Rendimiento (Trades)")
-        df_journal['PnL_Acum'] = df_journal['PnL'].cumsum()
-        st.line_chart(df_journal['PnL_Acum'])
-        
-        # Distribución de Estrategias
-        st.subheader("Rendimiento por Estrategia")
-        st.bar_chart(df_journal.groupby('Estrategia')['PnL'].sum())
+    st.divider()
+    
+    # LOGICA DEL CHECKLIST SEGUN ESTRATEGIA
+    ready_to_trade = False
+    
+    if strategy == "RANGOS":
+        st.subheader("🎯 Checklist: RANGOS")
+        c1 = st.checkbox("1. ¿Tiene mínimo 3 patas (extremos)?")
+        c2 = st.checkbox("2. ¿Entrada en extremo (NO CENTRADO)?")
+        c3 = st.checkbox("3. ¿Patrón H2/L2 claro?")
+        if c1 and c2 and c3:
+            ready_to_trade = True
 
+    elif strategy == "CANALES ANCHOS":
+        st.subheader("🌊 Checklist: CANALES ANCHOS")
+        c1 = st.checkbox("1. ¿A favor de tendencia (Pata Larga)?")
+        c2 = st.checkbox("2. ¿Pullback de calidad (2-3 patas)?")
+        c3 = st.checkbox("3. ¿Stop Loss protegido en pata anterior?")
+        if c1 and c2 and c3:
+            ready_to_trade = True
+
+    elif strategy == "CANALES ESTRECHOS":
+        st.subheader("🚀 Checklist: CANALES ESTRECHOS")
+        c1 = st.checkbox("1. ¿Retroceso al 50%?")
+        c2 = st.checkbox("2. ¿Pullback de 3 velas o menos?")
+        c3 = st.checkbox("3. ¿NO hay velas fuertes en contra?")
+        if c1 and c2 and c3:
+            ready_to_trade = True
+            
+    # Resultado
+    if ready_to_trade:
+        st.success("✅ SETUP APROBADO. ¡EJECUTA EL PLAN!")
+        # Muestra un resumen rápido de reglas de salida
+        st.info("💡 RECUERDA: Gestión de salida según PDF (10 velas o estructura).")
     else:
-        st.info("Añade trades para ver tus estadísticas.")
+        st.caption("Marca todas las casillas para validar el trade.")
+
+# ==============================================================================
+# 📓 PESTAÑA 3: DIARIO (CON FOTOS Y EMOCIONES)
+# ==============================================================================
+elif menu == "📓 Diario de Trades":
+    st.header("Registro de Operaciones")
+    
+    with st.expander("➕ AÑADIR NUEVO TRADE", expanded=True):
+        with st.form("entry_form"):
+            c1, c2, c3 = st.columns(3)
+            date_in = c1.date_input("Fecha", date.today())
+            acc_in = c2.selectbox("Cuenta", df_accounts['Nombre'].unique()) if not df_accounts.empty else c2.text_input("Cuenta (Nombre)")
+            asset_in = c3.text_input("Activo (ej. NQ)")
+            
+            c4, c5, c6 = st.columns(3)
+            strat_in = c4.selectbox("Estrategia Usada", ["Rangos", "Canales Anchos", "Canales Estrechos", "Otra"])
+            res_in = c5.selectbox("Resultado", ["WIN", "LOSS", "BE"])
+            pnl_in = c6.number_input("PnL ($)", step=50.0)
+            
+            c7, c8 = st.columns(2)
+            emo_in = c7.selectbox("Emociones", ["Neutro/Disciplinado", "Ansioso/Fomo", "Venganza", "Miedo", "Euforia"])
+            link_in = c8.text_input("Link Captura (TradingView/Lightshot)")
+            
+            notes_in = st.text_area("Notas Técnicas")
+            
+            submit = st.form_submit_button("💾 Guardar Trade")
+            
+            if submit:
+                new_data = pd.DataFrame({
+                    'Fecha': [date_in], 'Cuenta': [acc_in], 'Activo': [asset_in],
+                    'Estrategia': [strat_in], 'Resultado': [res_in], 'PnL': [pnl_in],
+                    'Emociones': [emo_in], 'Screenshot': [link_in], 'Notas': [notes_in]
+                })
+                df_journal = pd.concat([df_journal, new_data], ignore_index=True)
+                save_data(df_journal, JOURNAL_FILE)
+                st.success("Trade registrado.")
+                st.rerun()
+
+    st.subheader("Historial Reciente")
+    # Mostrar tabla con columnas seleccionadas para que se vea limpio
+    st.dataframe(df_journal.sort_values('Fecha', ascending=False), use_container_width=True)
+
+# ==============================================================================
+# 🏦 PESTAÑA 4: GESTIÓN DE CUENTAS (PROP FIRMS)
+# ==============================================================================
+elif menu == "🏦 Cuentas & Payouts":
+    st.header("Gestión de Prop Firms")
+    
+    # Formulario para añadir cuenta
+    with st.expander("➕ AÑADIR NUEVA CUENTA"):
+        with st.form("account_form"):
+            c1, c2 = st.columns(2)
+            name = c1.text_input("Nombre Identificativo (ej. Apex 1)")
+            firm = c2.text_input("Empresa (ej. Topstep)")
+            
+            c3, c4 = st.columns(2)
+            size = c3.selectbox("Tamaño Cuenta", ["25k", "50k", "100k", "150k", "300k"])
+            bal_ini = c4.number_input("Balance Inicial", value=50000.0)
+            
+            c5, c6 = st.columns(2)
+            goal = c5.number_input("Objetivo Mensual ($)", value=3000.0)
+            pay_date = c6.date_input("Próximo Payout")
+            
+            sub_acc = st.form_submit_button("Crear Cuenta")
+            
+            if sub_acc:
+                new_acc = pd.DataFrame({
+                    'Nombre': [name], 'Empresa': [firm], 'Tamaño': [size],
+                    'Balance_Inicial': [bal_ini], 'Objetivo_Mensual': [goal],
+                    'Fecha_Payout': [pay_date]
+                })
+                df_accounts = pd.concat([df_accounts, new_acc], ignore_index=True)
+                save_data(df_accounts, ACCOUNTS_FILE)
+                st.success(f"Cuenta {name} creada.")
+                st.rerun()
+
+    st.divider()
+    
+    # VISUALIZACIÓN DE ESTADO DE CUENTAS
+    if not df_accounts.empty:
+        st.subheader("Estado de Cuentas")
+        
+        for index, row in df_accounts.iterrows():
+            # Calcular PnL actual de esa cuenta leyendo del Journal
+            pnl_cuenta = df_journal[df_journal['Cuenta'] == row['Nombre']]['PnL'].sum()
+            balance_actual = row['Balance_Inicial'] + pnl_cuenta
+            
+            # Calcular días para payout
+            dias_payout = (pd.to_datetime(row['Fecha_Payout']).date() - date.today()).days
+            
+            with st.container():
+                # Diseño de tarjeta para cada cuenta
+                st.markdown(f"### 💳 {row['Nombre']} ({row['Empresa']})")
+                col1, col2, col3, col4 = st.columns(4)
+                
+                col1.metric("Balance Actual", f"${balance_actual:,.2f}", delta=f"{pnl_cuenta:.2f}")
+                col2.metric("Objetivo", f"${row['Objetivo_Mensual']:,.0f}")
+                
+                # Barra de progreso del objetivo
+                progreso = min(max(pnl_cuenta / row['Objetivo_Mensual'], 0.0), 1.0) if row['Objetivo_Mensual'] > 0 else 0
+                col3.progress(progreso, text=f"Progreso Objetivo: {progreso*100:.1f}%")
+                
+                color_dias = "off" if dias_payout > 7 else "normal" # Alerta si falta poco
+                col4.metric("Días para Payout", f"{dias_payout} días", delta_color=color_dias)
+                
+                st.markdown("---")
+    else:
+        st.info("Añade tu primera cuenta de fondeo arriba.")
