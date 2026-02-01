@@ -10,34 +10,121 @@ import io
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Life & Trading OS Pro", layout="wide", page_icon="🧿")
 
-# --- ESTILOS CSS ---
+# --- ESTILOS CSS ADAPTATIVOS (DARK/LIGHT MODE) ---
 st.markdown("""
 <style>
-    .stApp { background-color: #F5F7F9; }
+    /* Usamos variables de Streamlit para que se adapte al tema del usuario */
+    
+    /* TARJETAS KPI */
     .kpi-card {
-        background-color: white; border-radius: 12px; padding: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center;
-        margin-bottom: 10px; border: 1px solid #E0E0E0;
+        background-color: var(--secondary-background-color);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        text-align: center;
+        margin-bottom: 10px;
+        border: 1px solid rgba(128, 128, 128, 0.2);
     }
-    .kpi-title { color: #888; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
-    .kpi-value { font-size: 24px; font-weight: 800; color: #333; }
-    .stProgress > div > div > div > div { background-color: #00C076; }
-    .cal-header { font-weight: bold; text-align: center; margin-bottom: 5px; color: #555; font-size: 0.9em; text-transform: uppercase; }
+    
+    .kpi-title {
+        color: var(--text-color);
+        opacity: 0.7;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .kpi-value {
+        font-size: 24px;
+        font-weight: 800;
+        color: var(--text-color); /* Por defecto, luego lo sobrescribimos con rojo/verde */
+    }
+    
+    /* BARRAS DE PROGRESO */
+    .stProgress > div > div > div > div {
+        background-color: #00C076;
+    }
+    
+    /* CALENDARIOS */
+    .cal-header {
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 5px;
+        color: var(--text-color);
+        opacity: 0.8;
+        font-size: 0.9em;
+        text-transform: uppercase;
+    }
+    
+    /* CELDAS DEL CALENDARIO PNL */
     .pnl-cell {
-        height: 100px; border-radius: 12px; border: 1px solid #EAEAEA; margin: 4px; background: white;
-        display: flex; flex-direction: column; justify-content: space-between; padding: 8px;
+        height: 100px;
+        border-radius: 12px;
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        margin: 4px;
+        background-color: var(--secondary-background-color); /* Se adapta al tema */
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 8px;
         transition: all 0.2s ease;
     }
-    .pnl-cell:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-2px); }
-    .cell-date { font-weight: bold; color: #888; font-size: 0.9em; }
-    .cell-pnl { font-weight: 900; font-size: 1.4em; text-align: center; align-self: center; margin-bottom: 10px; }
-    .win-day { background-color: #ECFDF5; border-color: #A7F3D0; }
-    .loss-day { background-color: #FEF2F2; border-color: #FECACA; }
-    .win-text { color: #047857; }
-    .loss-text { color: #B91C1C; }
-    .calendar-day-agenda { border: 1px solid #E0E0E0; background: white; height: 100px; padding: 5px; font-size: 12px; border-radius: 8px; margin: 2px; overflow-y: auto; }
-    .event-tag { padding: 2px 5px; border-radius: 4px; margin-bottom: 2px; font-size: 10px; color: white; display: block; }
-    .evt-payout { background-color: #00C076; } .evt-bill { background-color: #FF4D4D; } .evt-task { background-color: #3B8ED0; }
+    
+    .pnl-cell:hover {
+        transform: translateY(-2px);
+        border-color: #00C076;
+    }
+    
+    .cell-date {
+        font-weight: bold;
+        color: var(--text-color);
+        opacity: 0.5;
+        font-size: 0.9em;
+    }
+    
+    .cell-pnl {
+        font-weight: 900;
+        font-size: 1.4em;
+        text-align: center;
+        align-self: center;
+        margin-bottom: 10px;
+    }
+    
+    /* Colores específicos para Win/Loss (brillantes para que se vean en dark mode) */
+    .win-day { border: 1px solid #00C076; background-color: rgba(0, 192, 118, 0.1); }
+    .loss-day { border: 1px solid #FF4D4D; background-color: rgba(255, 77, 77, 0.1); }
+    
+    .win-text { color: #00C076; }
+    .loss-text { color: #FF4D4D; }
+    
+    /* CELDAS DE AGENDA */
+    .calendar-day-agenda {
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        background-color: var(--secondary-background-color);
+        height: 100px;
+        padding: 5px;
+        font-size: 12px;
+        border-radius: 8px;
+        margin: 2px;
+        overflow-y: auto;
+        color: var(--text-color);
+    }
+    
+    .event-tag {
+        padding: 2px 5px;
+        border-radius: 4px;
+        margin-bottom: 2px;
+        font-size: 10px;
+        color: white; /* Texto dentro de etiquetas siempre blanco */
+        display: block;
+        font-weight: bold;
+    }
+    
+    .evt-payout { background-color: #00C076; }
+    .evt-bill { background-color: #FF4D4D; }
+    .evt-task { background-color: #3B8ED0; }
+    
     div.block-container { padding-top: 1rem; }
 </style>
 """, unsafe_allow_html=True)
@@ -45,7 +132,7 @@ st.markdown("""
 # --- GESTIÓN DE ARCHIVOS ---
 FILES = { 
     'journal': 'trading_journal_v5.csv', 
-    'accounts': 'prop_firms_v2.csv',  # Cambiamos nombre por nueva estructura
+    'accounts': 'prop_firms_v2.csv',
     'finance': 'trading_finances.csv', 
     'objectives': 'objectives.csv', 
     'subs': 'subscriptions.csv',
@@ -61,9 +148,8 @@ def load_data(key, columns):
 
 def save_data(df, key): df.to_csv(FILES[key], index=False)
 
-# Cargar Datos (NUEVA ESTRUCTURA DE CUENTAS)
+# Cargar Datos
 df_journal = load_data('journal', ['Fecha', 'Cuenta', 'Activo', 'Estrategia', 'Resultado', 'RR', 'PnL', 'Emociones', 'Screenshot', 'Notas'])
-# Cuentas ahora tiene más campos
 df_accounts = load_data('accounts', ['Nombre', 'Empresa', 'Tipo', 'Balance_Inicial', 'Balance_Actual', 'Balance_Objetivo', 'Dias_Objetivo', 'Costo', 'Estado', 'Fecha_Creacion'])
 df_finance = load_data('finance', ['Fecha', 'Tipo', 'Concepto', 'Monto'])
 df_objectives = load_data('objectives', ['ID', 'Tarea', 'Tipo', 'Fecha_Limite', 'Estado', 'Target_Dinero'])
@@ -87,10 +173,21 @@ menu = st.sidebar.radio("Navegación", ["📊 Dashboard & Meta", "🎯 Objetivos
 
 # --- UTILS ---
 def kpi_card(title, value, type="currency", color_logic=True):
-    color = "black"
-    if color_logic and isinstance(value, (int, float)): color = "#00C076" if value > 0 else "#FF4D4D" if value < 0 else "#F7B924"
+    # Lógica de color solo para el número, el resto hereda del tema
+    color_style = ""
+    if color_logic and isinstance(value, (int, float)):
+        if value > 0: color_style = "color: #00C076;"
+        elif value < 0: color_style = "color: #FF4D4D;"
+        else: color_style = "color: #F7B924;"
+    
     display = f"${value:,.2f}" if type == "currency" else f"{value:.1f}%" if type == "percent" else f"{value}"
-    st.markdown(f"""<div class="kpi-card"><div class="kpi-title">{title}</div><div class="kpi-value" style="color:{color}">{display}</div></div>""", unsafe_allow_html=True)
+    
+    st.markdown(f"""
+    <div class="kpi-card">
+        <div class="kpi-title">{title}</div>
+        <div class="kpi-value" style="{color_style}">{display}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ==============================================================================
 # 📊 TAB 1: DASHBOARD
@@ -138,14 +235,14 @@ if menu == "📊 Dashboard & Meta":
             df_sorted = df_journal.sort_values('Fecha')
             df_sorted['Acum'] = df_sorted['PnL'].cumsum()
             fig = px.area(df_sorted, x='Fecha', y='Acum'); fig.update_traces(line_color='#00C076', fillcolor='rgba(0,192,118,0.1)')
-            fig.update_layout(margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='white', plot_bgcolor='white', xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#eee'))
+            fig.update_layout(margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='rgba(128,128,128,0.2)'))
             st.plotly_chart(fig, use_container_width=True)
         with c_chart2:
             st.caption("Rendimiento Diario (Operativo)")
             daily = df_journal.groupby('Fecha')['PnL'].sum().reset_index()
             daily['Color'] = daily['PnL'].apply(lambda x: '#00C076' if x>=0 else '#FF4D4D')
             fig_bar = go.Figure([go.Bar(x=daily['Fecha'], y=daily['PnL'], marker_color=daily['Color'])])
-            fig_bar.update_layout(margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='white', plot_bgcolor='white', xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#eee'))
+            fig_bar.update_layout(margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='rgba(128,128,128,0.2)'))
             st.plotly_chart(fig_bar, use_container_width=True)
 
 # ==============================================================================
@@ -188,10 +285,12 @@ elif menu == "🎯 Objetivos & Calendario":
             cols = st.columns(7)
             for idx, day in enumerate(week):
                 with cols[idx]:
-                    if day == 0: st.markdown("<div class='calendar-day-agenda' style='background: #f9f9f9; border:none;'></div>", unsafe_allow_html=True)
+                    if day == 0: st.markdown("<div class='calendar-day-agenda' style='background-color: transparent; border:none;'></div>", unsafe_allow_html=True)
                     else:
                         events_html = ""
                         current_date = date(year, month, day)
+                        for _, acc in df_accounts.iterrows():
+                            if pd.to_datetime(acc['Fecha_Payout']).date() == current_date: events_html += f"<span class='event-tag evt-payout'>💰 Payout {acc['Empresa']}</span>"
                         for _, sub in df_subs.iterrows():
                             if int(sub['Dia_Renovacion']) == day: events_html += f"<span class='event-tag evt-bill'>💸 {sub['Servicio']}</span>"
                         for _, obj in df_objectives.iterrows():
@@ -220,17 +319,20 @@ elif menu == "🧠 Insights & Herramientas":
                 st.subheader("PnL por Día de la Semana")
                 pnl_day = df_ins.groupby('Día Semana')['PnL'].sum().reindex(['Lunes','Martes','Miércoles','Jueves','Viernes']).reset_index()
                 fig_day = px.bar(pnl_day, x='Día Semana', y='PnL', color='PnL', color_continuous_scale=['red', 'green'])
+                fig_day.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig_day, use_container_width=True)
             with col2:
                 st.subheader("PnL por Activo")
                 pnl_asset = df_ins.groupby('Activo')['PnL'].sum().reset_index()
                 fig_asset = px.bar(pnl_asset, x='Activo', y='PnL', color='PnL', color_continuous_scale=['red', 'green'])
+                fig_asset.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig_asset, use_container_width=True)
                 
             col3, col4 = st.columns(2)
             with col3:
                 st.subheader("Rendimiento por Estrategia")
                 fig_strat = px.box(df_ins, x='Estrategia', y='PnL', points="all")
+                fig_strat.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig_strat, use_container_width=True)
             with col4:
                 st.subheader("Ratio de Win/Loss")
@@ -285,7 +387,6 @@ elif menu == "📓 Diario de Trades (Multi)":
             d = c1.date_input("Fecha", date.today())
             selected_accounts = []
             if mode == "Cuenta Única":
-                # Filtrar solo cuentas activas para el desplegable
                 acc_list = df_accounts[df_accounts['Estado']=='Activa']['Nombre'].unique() if not df_accounts.empty else ["General"]
                 acc_single = c2.selectbox("Cuenta", acc_list)
                 selected_accounts = [acc_single]
@@ -358,153 +459,90 @@ elif menu == "📓 Diario de Trades (Multi)":
                         st.markdown(f"**{row['Fecha']}** | {row['Activo']}"); st.success(f"+${row['PnL']} ({row['Estrategia']})"); st.write(f"_{row['Notas']}_"); st.link_button("Ver Gráfico Completo", row['Screenshot'])
 
 # ==============================================================================
-# 🏦 TAB 6: CUENTAS Y GRUPOS (NUEVA LOGICA V9)
+# 🏦 TAB 6: CUENTAS Y GRUPOS
 # ==============================================================================
 elif menu == "🏦 Cuentas & Historial":
     st.header("Gestión de Capital")
     
     tabs_acc = st.tabs(["📋 Gestión Cuentas", "📜 Historial (Perdidas/Pasadas)", "👥 Grupos de Cuentas"])
     
-    # --- SUB-TAB 1: GESTIÓN DE CUENTAS ACTIVAS ---
     with tabs_acc[0]:
-        
-        # FORMULARIO AÑADIR CUENTA (MEJORADO)
         with st.expander("➕ Añadir Nueva Cuenta", expanded=False):
             with st.form("acc_f"):
                 c1, c2, c3 = st.columns(3)
                 n = c1.text_input("Nombre (ej. Apex 01)")
                 e = c2.text_input("Empresa (ej. Topstep)")
                 t = c3.selectbox("Tipo", ["Examen", "Funded"])
-                
                 c4, c5, c6 = st.columns(3)
                 bi = c4.number_input("Balance Inicial", value=50000.0)
-                # El balance actual empieza igual al inicial por defecto
                 bo = c5.number_input("Balance Objetivo", value=53000.0)
                 do = c6.number_input("Días Winning Objetivo", value=5)
-                
-                cost = st.number_input("Coste de la prueba ($) [Opcional]", value=0.0)
-                
+                cost = st.number_input("Coste ($)", value=0.0)
                 if st.form_submit_button("Crear Cuenta"):
-                    # Crear cuenta
-                    new_acc = pd.DataFrame([{
-                        'Nombre': n, 'Empresa': e, 'Tipo': t, 
-                        'Balance_Inicial': bi, 'Balance_Actual': bi, # Empieza igual
-                        'Balance_Objetivo': bo, 'Dias_Objetivo': do, 
-                        'Costo': cost, 'Estado': 'Activa', 
-                        'Fecha_Creacion': date.today()
-                    }])
+                    new_acc = pd.DataFrame([{'Nombre': n, 'Empresa': e, 'Tipo': t, 'Balance_Inicial': bi, 'Balance_Actual': bi, 'Balance_Objetivo': bo, 'Dias_Objetivo': do, 'Costo': cost, 'Estado': 'Activa', 'Fecha_Creacion': date.today()}])
                     df_accounts = pd.concat([df_accounts, new_acc], ignore_index=True)
                     save_data(df_accounts, 'accounts')
-                    
-                    # Si hay coste, añadir a finanzas automáticamente
                     if cost > 0:
-                        new_exp = pd.DataFrame([{
-                            'Fecha': date.today(), 'Tipo': 'GASTO (Cuenta)', 
-                            'Concepto': f"Compra {n} ({e})", 'Monto': -abs(cost)
-                        }])
-                        df_finance = pd.concat([df_finance, new_exp], ignore_index=True)
-                        save_data(df_finance, 'finance')
-                        
-                    st.success(f"Cuenta {n} creada y gasto registrado.")
-                    st.rerun()
+                        new_exp = pd.DataFrame([{'Fecha': date.today(), 'Tipo': 'GASTO (Cuenta)', 'Concepto': f"Compra {n} ({e})", 'Monto': -abs(cost)}])
+                        df_finance = pd.concat([df_finance, new_exp], ignore_index=True); save_data(df_finance, 'finance')
+                    st.success(f"Cuenta {n} creada."); st.rerun()
 
         st.markdown("---")
-        
-        # MOSTRAR CUENTAS ACTIVAS
         active_accounts = df_accounts[df_accounts['Estado'] == 'Activa']
-        
-        if active_accounts.empty:
-            st.info("No tienes cuentas activas. Crea una arriba.")
+        if active_accounts.empty: st.info("No tienes cuentas activas.")
         else:
             for index, row in active_accounts.iterrows():
                 with st.container(border=True):
-                    # CABECERA
-                    st.markdown(f"### 💳 {row['Nombre']} <span style='font-size:0.8em; color:grey'>({row['Empresa']} - {row['Tipo']})</span>", unsafe_allow_html=True)
-                    
-                    # DATOS
+                    st.markdown(f"### 💳 {row['Nombre']} <span style='font-size:0.8em; opacity:0.6'>({row['Empresa']} - {row['Tipo']})</span>", unsafe_allow_html=True)
                     col_met1, col_met2, col_met3 = st.columns(3)
-                    
-                    # 1. BALANCE ACTUAL (Editado por usuario)
-                    # Calculamos el PnL acumulado en el journal para referencia visual, pero usamos el Balance Actual guardado
                     pnl_journal = df_journal[df_journal['Cuenta'] == row['Nombre']]['PnL'].sum()
-                    
                     col_met1.metric("Balance Actual", f"${row['Balance_Actual']:,.2f}", f"PnL Journal: ${pnl_journal:,.2f}")
                     
-                    # 2. PROGRESO WINNING DAYS (Calculado Auto)
-                    # Filtramos trades de esta cuenta, agrupamos por fecha, sumamos PnL diario
+                    winning_days = 0
                     if not df_journal.empty:
                         trades_acc = df_journal[df_journal['Cuenta'] == row['Nombre']]
                         if not trades_acc.empty:
                             daily_pnl = trades_acc.groupby('Fecha')['PnL'].sum()
-                            winning_days = daily_pnl[daily_pnl >= 150].count() # Umbral $150
-                        else:
-                            winning_days = 0
-                    else:
-                        winning_days = 0
-                        
+                            winning_days = daily_pnl[daily_pnl >= 150].count()
                     col_met2.metric("Winning Days (+150$)", f"{winning_days}/{int(row['Dias_Objetivo'])}")
                     
-                    # 3. PROGRESO DINERO
                     target_money = row['Balance_Objetivo'] - row['Balance_Inicial']
                     current_money = row['Balance_Actual'] - row['Balance_Inicial']
                     prog_money = min(max(current_money / target_money, 0.0), 1.0) if target_money > 0 else 0
                     col_met3.progress(prog_money, f"Objetivo Dinero: ${current_money:,.0f} / ${target_money:,.0f}")
 
-                    # --- ZONA DE EDICIÓN Y ACCIONES ---
-                    with st.expander("⚙️ Gestionar / Editar / Payout"):
+                    with st.expander("⚙️ Editar / Payout"):
                         with st.form(f"edit_{index}"):
                             c_e1, c_e2 = st.columns(2)
                             new_bal = c_e1.number_input("Editar Balance Actual", value=float(row['Balance_Actual']), step=100.0, key=f"bal_{index}")
-                            action = c_e2.selectbox("Acción Estado", ["Mantener Activa", "Pasar a Funded 🏆", "Archivar (Perdida) 💀", "Archivar (Retirada) 🏁"], key=f"act_{index}")
-                            
-                            if st.form_submit_button("Actualizar Cuenta"):
-                                # Actualizar Balance
+                            action = c_e2.selectbox("Acción", ["Mantener Activa", "Pasar a Funded 🏆", "Archivar (Perdida) 💀", "Archivar (Retirada) 🏁"], key=f"act_{index}")
+                            if st.form_submit_button("Actualizar"):
                                 df_accounts.at[index, 'Balance_Actual'] = new_bal
-                                
-                                # Cambio de Estado
-                                if action == "Pasar a Funded 🏆":
-                                    df_accounts.at[index, 'Tipo'] = "Funded"
-                                    # Resetear balance inicial al nuevo si se quiere, o dejarlo. 
-                                    st.success(f"¡Felicidades! {row['Nombre']} ahora es Funded.")
-                                    
-                                elif "Archivar" in action:
-                                    df_accounts.at[index, 'Estado'] = "Historico"
-                                    # Podríamos añadir una nota de por qué se archivó en el nombre o columna nueva
-                                    status_note = "Perdida" if "Perdida" in action else "Retirada"
-                                    st.warning(f"Cuenta movida al historial como {status_note}.")
-                                
-                                save_data(df_accounts, 'accounts')
-                                st.rerun()
+                                if action == "Pasar a Funded 🏆": df_accounts.at[index, 'Tipo'] = "Funded"
+                                elif "Archivar" in action: df_accounts.at[index, 'Estado'] = "Historico"
+                                save_data(df_accounts, 'accounts'); st.rerun()
 
-    # --- SUB-TAB 2: HISTORIAL ---
     with tabs_acc[1]:
         st.subheader("Cementerio y Hall de la Fama")
         history_accounts = df_accounts[df_accounts['Estado'] != 'Activa']
-        if history_accounts.empty:
-            st.info("No hay cuentas en el historial.")
+        if history_accounts.empty: st.info("No hay cuentas en el historial.")
         else:
             st.dataframe(history_accounts, use_container_width=True)
             if st.button("🗑️ Borrar Historial Definitivamente"):
-                # Mantener solo activas
                 df_accounts = df_accounts[df_accounts['Estado'] == 'Activa']
-                save_data(df_accounts, 'accounts')
-                st.rerun()
+                save_data(df_accounts, 'accounts'); st.rerun()
 
-    # --- SUB-TAB 3: GRUPOS ---
     with tabs_acc[2]:
         st.subheader("Crear Grupo de Réplica")
         with st.form("grp_form"):
             g_name = st.text_input("Nombre del Grupo")
-            # Solo mostrar cuentas activas para agrupar
             active_names = df_accounts[df_accounts['Estado'] == 'Activa']['Nombre'].unique()
             g_accs = st.multiselect("Selecciona Cuentas", active_names)
-            
             if st.form_submit_button("Guardar Grupo"):
                 if g_name and g_accs:
                     new_grp = pd.DataFrame([{'Nombre_Grupo': g_name, 'Cuentas': ",".join(g_accs)}])
                     df_groups = pd.concat([df_groups, new_grp], ignore_index=True)
                     save_data(df_groups, 'groups'); st.success("Grupo creado."); st.rerun()
-        
         if not df_groups.empty: st.dataframe(df_groups, use_container_width=True)
 
 # ==============================================================================
