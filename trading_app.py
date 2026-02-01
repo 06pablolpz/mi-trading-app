@@ -10,116 +10,36 @@ import io
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Life & Trading OS Pro", layout="wide", page_icon="🧿")
 
-# --- ESTILOS CSS ADAPTATIVOS (DARK/LIGHT MODE) ---
+# --- ESTILOS CSS ADAPTATIVOS ---
 st.markdown("""
 <style>
-    /* TARJETAS KPI */
     .kpi-card {
         background-color: var(--secondary-background-color);
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        text-align: center;
-        margin-bottom: 10px;
-        border: 1px solid rgba(128, 128, 128, 0.2);
+        border-radius: 12px; padding: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;
+        margin-bottom: 10px; border: 1px solid rgba(128, 128, 128, 0.2);
     }
-    
-    .kpi-title {
-        color: var(--text-color);
-        opacity: 0.7;
-        font-size: 12px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-    
-    .kpi-value {
-        font-size: 24px;
-        font-weight: 800;
-        color: var(--text-color);
-    }
-    
-    /* BARRAS DE PROGRESO */
-    .stProgress > div > div > div > div {
-        background-color: #00C076;
-    }
-    
-    /* CALENDARIOS */
-    .cal-header {
-        font-weight: bold;
-        text-align: center;
-        margin-bottom: 5px;
-        color: var(--text-color);
-        opacity: 0.8;
-        font-size: 0.9em;
-        text-transform: uppercase;
-    }
-    
+    .kpi-title { color: var(--text-color); opacity: 0.7; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+    .kpi-value { font-size: 24px; font-weight: 800; color: var(--text-color); }
+    .stProgress > div > div > div > div { background-color: #00C076; }
+    .cal-header { font-weight: bold; text-align: center; margin-bottom: 5px; color: var(--text-color); opacity: 0.8; font-size: 0.9em; text-transform: uppercase; }
     .pnl-cell {
-        height: 100px;
-        border-radius: 12px;
-        border: 1px solid rgba(128, 128, 128, 0.2);
-        margin: 4px;
-        background-color: var(--secondary-background-color);
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        padding: 8px;
-        transition: all 0.2s ease;
+        height: 100px; border-radius: 12px; border: 1px solid rgba(128, 128, 128, 0.2); margin: 4px;
+        background-color: var(--secondary-background-color); display: flex; flex-direction: column;
+        justify-content: space-between; padding: 8px; transition: all 0.2s ease;
     }
-    
-    .pnl-cell:hover {
-        transform: translateY(-2px);
-        border-color: #00C076;
-    }
-    
-    .cell-date {
-        font-weight: bold;
-        color: var(--text-color);
-        opacity: 0.5;
-        font-size: 0.9em;
-    }
-    
-    .cell-pnl {
-        font-weight: 900;
-        font-size: 1.4em;
-        text-align: center;
-        align-self: center;
-        margin-bottom: 10px;
-    }
-    
+    .pnl-cell:hover { transform: translateY(-2px); border-color: #00C076; }
+    .cell-date { font-weight: bold; color: var(--text-color); opacity: 0.5; font-size: 0.9em; }
+    .cell-pnl { font-weight: 900; font-size: 1.4em; text-align: center; align-self: center; margin-bottom: 10px; }
     .win-day { border: 1px solid #00C076; background-color: rgba(0, 192, 118, 0.1); }
     .loss-day { border: 1px solid #FF4D4D; background-color: rgba(255, 77, 77, 0.1); }
-    
-    .win-text { color: #00C076; }
-    .loss-text { color: #FF4D4D; }
-    
+    .win-text { color: #00C076; } .loss-text { color: #FF4D4D; }
     .calendar-day-agenda {
-        border: 1px solid rgba(128, 128, 128, 0.2);
-        background-color: var(--secondary-background-color);
-        height: 100px;
-        padding: 5px;
-        font-size: 12px;
-        border-radius: 8px;
-        margin: 2px;
-        overflow-y: auto;
-        color: var(--text-color);
+        border: 1px solid rgba(128, 128, 128, 0.2); background-color: var(--secondary-background-color);
+        height: 100px; padding: 5px; font-size: 12px; border-radius: 8px; margin: 2px; overflow-y: auto; color: var(--text-color);
     }
-    
-    .event-tag {
-        padding: 2px 5px;
-        border-radius: 4px;
-        margin-bottom: 2px;
-        font-size: 10px;
-        color: white;
-        display: block;
-        font-weight: bold;
-    }
-    
-    .evt-payout { background-color: #00C076; }
-    .evt-bill { background-color: #FF4D4D; }
-    .evt-task { background-color: #3B8ED0; }
-    
+    .event-tag { padding: 2px 5px; border-radius: 4px; margin-bottom: 2px; font-size: 10px; color: white; display: block; font-weight: bold; }
+    .evt-bill { background-color: #FF4D4D; } .evt-task { background-color: #3B8ED0; }
     div.block-container { padding-top: 1rem; }
 </style>
 """, unsafe_allow_html=True)
@@ -233,7 +153,7 @@ if menu == "📊 Dashboard & Meta":
             st.plotly_chart(fig_bar, use_container_width=True)
 
 # ==============================================================================
-# 🎯 TAB 2: OBJETIVOS & AGENDA
+# 🎯 TAB 2: OBJETIVOS & AGENDA (FIX ERROR)
 # ==============================================================================
 elif menu == "🎯 Objetivos & Calendario":
     st.header("Planificación & Agenda")
@@ -276,8 +196,7 @@ elif menu == "🎯 Objetivos & Calendario":
                     else:
                         events_html = ""
                         current_date = date(year, month, day)
-                        for _, acc in df_accounts.iterrows():
-                            if pd.to_datetime(acc['Fecha_Payout']).date() == current_date: events_html += f"<span class='event-tag evt-payout'>💰 Payout {acc['Empresa']}</span>"
+                        # --- FIX: ELIMINADO BUCLE DE FECHA PAYOUT ---
                         for _, sub in df_subs.iterrows():
                             if int(sub['Dia_Renovacion']) == day: events_html += f"<span class='event-tag evt-bill'>💸 {sub['Servicio']}</span>"
                         for _, obj in df_objectives.iterrows():
@@ -300,7 +219,6 @@ elif menu == "🧠 Insights & Herramientas":
             df_ins['Día Semana'] = df_ins['Fecha'].dt.day_name()
             dias_es = {'Monday':'Lunes', 'Tuesday':'Martes', 'Wednesday':'Miércoles', 'Thursday':'Jueves', 'Friday':'Viernes', 'Saturday':'Sábado', 'Sunday':'Domingo'}
             df_ins['Día Semana'] = df_ins['Día Semana'].map(dias_es)
-            
             col1, col2 = st.columns(2)
             with col1:
                 st.subheader("PnL por Día de la Semana")
@@ -314,7 +232,6 @@ elif menu == "🧠 Insights & Herramientas":
                 fig_asset = px.bar(pnl_asset, x='Activo', y='PnL', color='PnL', color_continuous_scale=['red', 'green'])
                 fig_asset.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig_asset, use_container_width=True)
-                
             col3, col4 = st.columns(2)
             with col3:
                 st.subheader("Rendimiento por Estrategia")
@@ -339,8 +256,7 @@ elif menu == "🧠 Insights & Herramientas":
                 contracts = risk_amount / (stop_points * tick_value)
                 c5.metric("Contratos a usar", f"{contracts:.1f}", f"Riesgo: ${risk_amount:.0f}")
                 st.info(f"💡 Si tu stop es de **{stop_points} puntos** y quieres perder máximo **${risk_amount:.0f}**, debes entrar con **{int(contracts)} contratos** (redondeado).")
-            else:
-                c5.write("Define Stop y Valor.")
+            else: c5.write("Define Stop y Valor.")
 
 # ==============================================================================
 # ✅ TAB 4: CHECKLIST
@@ -366,7 +282,6 @@ elif menu == "✅ Checklist Ejecución":
 # ==============================================================================
 elif menu == "📓 Diario de Trades (Multi)":
     st.header("Diario de Trades")
-    
     with st.expander("➕ Registrar Nuevo Trade (Soporte Multi-Cuenta)", expanded=False):
         mode = st.radio("Modo de Entrada:", ["Cuenta Única", "Grupo de Cuentas"], horizontal=True)
         with st.form("new_trade"):
@@ -536,7 +451,7 @@ elif menu == "🏦 Cuentas & Historial":
         if not df_groups.empty: st.dataframe(df_groups, use_container_width=True)
 
 # ==============================================================================
-# 💰 TAB 7: FINANZAS
+# 💰 TAB 7: FINANZAS (FINANZAS EDITABLES AÑADIDAS)
 # ==============================================================================
 elif menu == "💰 Finanzas & ROI":
     st.header("Centro Financiero")
@@ -565,4 +480,10 @@ elif menu == "💰 Finanzas & ROI":
         if not df_finance.empty:
             income = df_finance[df_finance['Monto'] > 0]['Monto'].sum(); expenses = abs(df_finance[df_finance['Monto'] < 0]['Monto'].sum()); net_profit = income - expenses; roi = ((income - expenses) / expenses * 100) if expenses > 0 else 0
             k1, k2, k3 = st.columns(3); k1.metric("Invertido", f"${expenses:,.2f}"); k2.metric("Retirado", f"${income:,.2f}"); k3.metric("Beneficio Neto", f"${net_profit:,.2f}", delta=f"{roi:.1f}% ROI")
-            st.dataframe(df_finance.sort_values('Fecha', ascending=False), use_container_width=True, height=200)
+            st.info("💡 Puedes editar o borrar gastos seleccionando las filas.")
+            # --- FINANZAS EDITABLES ---
+            edited_fin = st.data_editor(df_finance.sort_values('Fecha', ascending=False), use_container_width=True, num_rows="dynamic", key="editor_fin")
+            if st.button("💾 Guardar Cambios Finanzas"):
+                save_data(edited_fin, 'finance')
+                st.success("Finanzas actualizadas.")
+                st.rerun()
