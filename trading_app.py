@@ -9,12 +9,10 @@ import os
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Life & Trading OS Pro", layout="wide", page_icon="🧿")
 
-# --- ESTILOS CSS (ESTILO TICKTICK + TRADEZELLA CALENDAR) ---
+# --- ESTILOS CSS ---
 st.markdown("""
 <style>
     .stApp { background-color: #F5F7F9; }
-    
-    /* KPI CARDS */
     .kpi-card {
         background-color: white; border-radius: 12px; padding: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center;
@@ -22,14 +20,8 @@ st.markdown("""
     }
     .kpi-title { color: #888; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
     .kpi-value { font-size: 24px; font-weight: 800; color: #333; }
-    
-    /* PROGRESS BARS */
     .stProgress > div > div > div > div { background-color: #00C076; }
-    
-    /* CALENDAR STYLES (AGENDA & PNL) */
     .cal-header { font-weight: bold; text-align: center; margin-bottom: 5px; color: #555; font-size: 0.9em; text-transform: uppercase; }
-    
-    /* PNL CALENDAR SPECIFIC */
     .pnl-cell {
         height: 100px; border-radius: 12px; border: 1px solid #EAEAEA; margin: 4px; background: white;
         display: flex; flex-direction: column; justify-content: space-between; padding: 8px;
@@ -38,17 +30,13 @@ st.markdown("""
     .pnl-cell:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-2px); }
     .cell-date { font-weight: bold; color: #888; font-size: 0.9em; }
     .cell-pnl { font-weight: 900; font-size: 1.4em; text-align: center; align-self: center; margin-bottom: 10px; }
-    
-    .win-day { background-color: #ECFDF5; border-color: #A7F3D0; } /* Verde suave Zella style */
-    .loss-day { background-color: #FEF2F2; border-color: #FECACA; } /* Rojo suave Zella style */
+    .win-day { background-color: #ECFDF5; border-color: #A7F3D0; }
+    .loss-day { background-color: #FEF2F2; border-color: #FECACA; }
     .win-text { color: #047857; }
     .loss-text { color: #B91C1C; }
-    
-    /* Event tags for Agenda Calendar */
     .calendar-day-agenda { border: 1px solid #E0E0E0; background: white; height: 100px; padding: 5px; font-size: 12px; border-radius: 8px; margin: 2px; overflow-y: auto; }
     .event-tag { padding: 2px 5px; border-radius: 4px; margin-bottom: 2px; font-size: 10px; color: white; display: block; }
     .evt-payout { background-color: #00C076; } .evt-bill { background-color: #FF4D4D; } .evt-task { background-color: #3B8ED0; }
-
     div.block-container { padding-top: 1rem; }
 </style>
 """, unsafe_allow_html=True)
@@ -58,7 +46,13 @@ FILES = { 'journal': 'trading_journal_v5.csv', 'accounts': 'prop_firms.csv', 'fi
 
 def load_data(key, columns):
     if not os.path.exists(FILES[key]): return pd.DataFrame(columns=columns)
-    return pd.read_csv(FILES[key])
+    df = pd.read_csv(FILES[key])
+    # --- FIX CRÍTICO: LIMPIEZA DE COLUMNA SCREENSHOT ---
+    if key == 'journal' and 'Screenshot' in df.columns:
+        # Rellena vacíos con texto vacío y asegura que todo sea texto (string)
+        df['Screenshot'] = df['Screenshot'].fillna("").astype(str)
+    return df
+
 def save_data(df, key): df.to_csv(FILES[key], index=False)
 
 # Cargar Datos
@@ -86,16 +80,24 @@ if menu == "📊 Dashboard & Meta":
     st.header("Visión General")
     financial_goal_row = df_objectives[df_objectives['Tipo'] == 'META_ANUAL']
     target_amount = float(financial_goal_row.iloc[0]['Target_Dinero']) if not financial_goal_row.empty else 10000.0
-    total_pnl = df_journal['PnL'].sum()
-    progress_pct = min(max(total_pnl / target_amount, 0.0), 1.0)
-    remaining = target_amount - total_pnl
+    
+    # --- LOGICA MODIFICADA: SOLO CUENTA PAYOUTS ---
+    # Filtramos en Finanzas todo lo que contenga la palabra "INGRESO"
+    total_payouts_real = 0.0
+    if not df_finance.empty:
+        # Sumamos solo los montos positivos marcados como Ingreso
+        payouts_df = df_finance[df_finance['Tipo'].str.contains("INGRESO", na=False)]
+        total_payouts_real = payouts_df['Monto'].sum()
+        
+    progress_pct = min(max(total_payouts_real / target_amount, 0.0), 1.0)
+    remaining = target_amount - total_payouts_real
     
     with st.container(border=True):
         c1, c2 = st.columns([3, 1])
-        c1.subheader(f"🎯 Meta Anual: ${target_amount:,.0f}")
+        c1.subheader(f"🎯 Meta Anual (Payouts Reales): ${target_amount:,.0f}")
         c1.progress(progress_pct)
-        if remaining > 0: c1.caption(f"💪 Faltan **${remaining:,.2f}** para tu objetivo.")
-        else: c1.success("🎉 ¡OBJETIVO COMPLETADO!")
+        if remaining > 0: c1.caption(f"💪 Has retirado **${total_payouts_real:,.2f}**. Faltan **${remaining:,.2f}** para tu objetivo.")
+        else: c1.success(f"🎉 ¡OBJETIVO COMPLETADO! Retirado: ${total_payouts_real:,.2f}")
         with c2:
             new_target = st.number_input("Ajustar Meta ($)", value=target_amount, label_visibility="collapsed")
             if st.button("Actualizar"):
@@ -104,21 +106,27 @@ if menu == "📊 Dashboard & Meta":
                 save_data(df_objectives, 'objectives'); st.rerun()
 
     st.markdown("---")
+    
+    # KPIs de TRADING (Esto sí se queda con los trades para saber tu rendimiento operativo)
+    total_pnl_trading = df_journal['PnL'].sum()
     if not df_journal.empty:
         win_rate = (len(df_journal[df_journal['Resultado']=='WIN']) / len(df_journal) * 100)
         c1, c2, c3, c4 = st.columns(4)
-        with c1: kpi_card("Net P&L", total_pnl, "currency")
+        with c1: kpi_card("Trading P&L (Op.)", total_pnl_trading, "currency") # Diferenciamos PnL Operativo vs Payouts
         with c2: kpi_card("Win Rate", win_rate, "percent")
         with c3: kpi_card("Total Trades", len(df_journal), "number", False)
         with c4: kpi_card("Avg. RR", df_journal['RR'].mean(), "number", False)
+        
         c_chart1, c_chart2 = st.columns(2)
         with c_chart1:
+            st.caption("Curva de Rendimiento (Operativo)")
             df_sorted = df_journal.sort_values('Fecha')
             df_sorted['Acum'] = df_sorted['PnL'].cumsum()
             fig = px.area(df_sorted, x='Fecha', y='Acum'); fig.update_traces(line_color='#00C076', fillcolor='rgba(0,192,118,0.1)')
             fig.update_layout(margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='white', plot_bgcolor='white', xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#eee'))
             st.plotly_chart(fig, use_container_width=True)
         with c_chart2:
+            st.caption("Rendimiento Diario (Operativo)")
             daily = df_journal.groupby('Fecha')['PnL'].sum().reset_index()
             daily['Color'] = daily['PnL'].apply(lambda x: '#00C076' if x>=0 else '#FF4D4D')
             fig_bar = go.Figure([go.Bar(x=daily['Fecha'], y=daily['PnL'], marker_color=daily['Color'])])
@@ -199,12 +207,11 @@ elif menu == "✅ Checklist Ejecución":
         else: st.warning("Completa las reglas.")
 
 # ==============================================================================
-# 📓 TAB 4: DIARIO (CON CALENDARIO PNL)
+# 📓 TAB 4: DIARIO (CON CORRECCIÓN DE ERROR)
 # ==============================================================================
 elif menu == "📓 Diario de Trades":
     st.header("Diario de Trades")
 
-    # --- FORMULARIO DE ENTRADA RÁPIDA ---
     with st.expander("➕ Registrar Nuevo Trade", expanded=False):
         with st.form("new_trade"):
             c1, c2, c3 = st.columns(3)
@@ -224,76 +231,51 @@ elif menu == "📓 Diario de Trades":
                 df_journal = pd.concat([df_journal, new], ignore_index=True)
                 save_data(df_journal, 'journal'); st.rerun()
 
-    # --- PESTAÑAS DE VISTA ---
     journal_tabs = st.tabs(["🗓️ Vista Calendario PnL", "📝 Vista Tabla Historial"])
 
-    # --- VISTA CALENDARIO PNL ---
     with journal_tabs[0]:
         st.subheader(f"Rendimiento: {datetime.now().strftime('%B %Y')}")
-        
-        # 1. Preparar Datos del Mes Actual
         today = date.today()
+        # Aseguramos que Fecha es datetime
         df_journal['Fecha'] = pd.to_datetime(df_journal['Fecha']).dt.date
         df_this_month = df_journal[(pd.to_datetime(df_journal['Fecha']).dt.month == today.month) & (pd.to_datetime(df_journal['Fecha']).dt.year == today.year)]
         daily_pnl_map = df_this_month.groupby('Fecha')['PnL'].sum().to_dict()
         month_total = df_this_month['PnL'].sum()
 
-        # 2. Dibujar Calendario
         cal = calendar.monthcalendar(today.year, today.month)
         cols = st.columns(7)
         days_name = ['LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB', 'DOM']
         for idx, col in enumerate(cols): col.markdown(f"<div class='cal-header'>{days_name[idx]}</div>", unsafe_allow_html=True)
-
         for week in cal:
             cols = st.columns(7)
             for idx, day in enumerate(week):
                 with cols[idx]:
-                    if day == 0:
-                        st.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True)
+                    if day == 0: st.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True)
                     else:
                         current_date = date(today.year, today.month, day)
                         pnl = daily_pnl_map.get(current_date, 0)
-                        
-                        # Determinar estilos según PnL
                         cell_class = "pnl-cell"
                         text_class = ""
                         pnl_display = "-"
-                        
-                        if pnl > 0:
-                            cell_class += " win-day"
-                            text_class = "win-text"
-                            pnl_display = f"+${pnl:,.0f}"
-                        elif pnl < 0:
-                            cell_class += " loss-day"
-                            text_class = "loss-text"
-                            pnl_display = f"-${abs(pnl):,.0f}"
-                        
-                        # HTML de la celda
-                        st.markdown(f"""
-                        <div class='{cell_class}'>
-                            <div class='cell-date'>{day}</div>
-                            <div class='cell-pnl {text_class}'>{pnl_display}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        if pnl > 0: cell_class += " win-day"; text_class = "win-text"; pnl_display = f"+${pnl:,.0f}"
+                        elif pnl < 0: cell_class += " loss-day"; text_class = "loss-text"; pnl_display = f"-${abs(pnl):,.0f}"
+                        st.markdown(f"<div class='{cell_class}'><div class='cell-date'>{day}</div><div class='cell-pnl {text_class}'>{pnl_display}</div></div>", unsafe_allow_html=True)
         
-        # 3. Total del Mes
         st.markdown("---")
         total_color = "#00C076" if month_total >= 0 else "#FF4D4D"
         st.markdown(f"<h3 style='text-align: center;'>Total Mes: <span style='color:{total_color}; font-size: 1.5em;'>${month_total:,.2f}</span></h3>", unsafe_allow_html=True)
 
-
-    # --- VISTA TABLA ---
     with journal_tabs[1]:
         st.info("💡 Edita directamente. Selecciona fila + Supr para borrar.")
+        # Aquí es donde fallaba antes, ahora con la limpieza en load_data funcionará
         edited = st.data_editor(df_journal.sort_values('Fecha', ascending=False), num_rows="dynamic", key="editor_j", use_container_width=True, column_config={"Screenshot": st.column_config.LinkColumn("Ver Gráfico")})
         if st.button("💾 Guardar Cambios Tabla"):
             save_data(edited, 'journal'); st.success("Guardado.")
 
 # ==============================================================================
-# 🏦 TAB 5 & 💰 TAB 6 (MANTENIDOS IGUAL)
+# 🏦 TAB 5: CUENTAS
 # ==============================================================================
 elif menu == "🏦 Cuentas Fondeo":
-    # (Código de cuentas igual que V5.0)
     st.header("Gestión de Capital")
     with st.expander("Añadir Cuenta"):
         with st.form("acc_f"):
@@ -304,8 +286,10 @@ elif menu == "🏦 Cuentas Fondeo":
         with st.container(border=True):
             c1, c2, c3 = st.columns(3); c1.metric(r['Nombre'], f"${r['Balance_Inicial']+pnl_acc:,.2f}", f"{pnl_acc:,.2f}"); prog = min(max(pnl_acc/r['Objetivo_Mensual'],0.0),1.0) if r['Objetivo_Mensual']>0 else 0; c2.progress(prog, f"Objetivo: {prog*100:.1f}%"); c3.metric("Días Payout", days, delta_color="off")
 
+# ==============================================================================
+# 💰 TAB 6: FINANZAS
+# ==============================================================================
 elif menu == "💰 Finanzas & ROI":
-    # (Código de finanzas igual que V5.0)
     st.header("Centro Financiero")
     with st.expander("🔄 Gestionar Suscripciones Recurrentes", expanded=False):
         c1, c2 = st.columns([2, 1])
