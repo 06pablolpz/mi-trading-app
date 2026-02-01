@@ -47,9 +47,7 @@ FILES = { 'journal': 'trading_journal_v5.csv', 'accounts': 'prop_firms.csv', 'fi
 def load_data(key, columns):
     if not os.path.exists(FILES[key]): return pd.DataFrame(columns=columns)
     df = pd.read_csv(FILES[key])
-    # --- FIX CRÍTICO: LIMPIEZA DE COLUMNA SCREENSHOT ---
     if key == 'journal' and 'Screenshot' in df.columns:
-        # Rellena vacíos con texto vacío y asegura que todo sea texto (string)
         df['Screenshot'] = df['Screenshot'].fillna("").astype(str)
     return df
 
@@ -64,7 +62,7 @@ df_subs = load_data('subs', ['Servicio', 'Monto', 'Dia_Renovacion'])
 
 # --- SIDEBAR ---
 st.sidebar.title("🧿 Life & Trading OS")
-menu = st.sidebar.radio("Navegación", ["📊 Dashboard & Meta", "🎯 Objetivos & Calendario", "✅ Checklist Ejecución", "📓 Diario de Trades", "🏦 Cuentas Fondeo", "💰 Finanzas & ROI"])
+menu = st.sidebar.radio("Navegación", ["📊 Dashboard & Meta", "🎯 Objetivos & Calendario", "🧠 Insights & Herramientas", "✅ Checklist Ejecución", "📓 Diario de Trades", "🏦 Cuentas Fondeo", "💰 Finanzas & ROI"])
 
 # --- UTILS ---
 def kpi_card(title, value, type="currency", color_logic=True):
@@ -81,11 +79,8 @@ if menu == "📊 Dashboard & Meta":
     financial_goal_row = df_objectives[df_objectives['Tipo'] == 'META_ANUAL']
     target_amount = float(financial_goal_row.iloc[0]['Target_Dinero']) if not financial_goal_row.empty else 10000.0
     
-    # --- LOGICA MODIFICADA: SOLO CUENTA PAYOUTS ---
-    # Filtramos en Finanzas todo lo que contenga la palabra "INGRESO"
     total_payouts_real = 0.0
     if not df_finance.empty:
-        # Sumamos solo los montos positivos marcados como Ingreso
         payouts_df = df_finance[df_finance['Tipo'].str.contains("INGRESO", na=False)]
         total_payouts_real = payouts_df['Monto'].sum()
         
@@ -107,12 +102,11 @@ if menu == "📊 Dashboard & Meta":
 
     st.markdown("---")
     
-    # KPIs de TRADING (Esto sí se queda con los trades para saber tu rendimiento operativo)
     total_pnl_trading = df_journal['PnL'].sum()
     if not df_journal.empty:
         win_rate = (len(df_journal[df_journal['Resultado']=='WIN']) / len(df_journal) * 100)
         c1, c2, c3, c4 = st.columns(4)
-        with c1: kpi_card("Trading P&L (Op.)", total_pnl_trading, "currency") # Diferenciamos PnL Operativo vs Payouts
+        with c1: kpi_card("Trading P&L (Op.)", total_pnl_trading, "currency")
         with c2: kpi_card("Win Rate", win_rate, "percent")
         with c3: kpi_card("Total Trades", len(df_journal), "number", False)
         with c4: kpi_card("Avg. RR", df_journal['RR'].mean(), "number", False)
@@ -188,7 +182,74 @@ elif menu == "🎯 Objetivos & Calendario":
                         st.markdown(f"<div class='calendar-day-agenda'><strong>{day}</strong><br>{events_html}</div>", unsafe_allow_html=True)
 
 # ==============================================================================
-# ✅ TAB 3: CHECKLIST
+# 🧠 TAB 3: INSIGHTS Y HERRAMIENTAS (NUEVO)
+# ==============================================================================
+elif menu == "🧠 Insights & Herramientas":
+    st.header("Análisis Profundo y Utilidades")
+    
+    tabs = st.tabs(["📊 Analítica Avanzada (Insights)", "🧮 Calculadora de Riesgo"])
+    
+    # --- SUB-TAB 1: INSIGHTS ---
+    with tabs[0]:
+        if df_journal.empty:
+            st.info("Necesitas registrar trades para ver analíticas.")
+        else:
+            # Preparar datos
+            df_ins = df_journal.copy()
+            df_ins['Fecha'] = pd.to_datetime(df_ins['Fecha'])
+            df_ins['Día Semana'] = df_ins['Fecha'].dt.day_name()
+            # Traducir días
+            dias_es = {'Monday':'Lunes', 'Tuesday':'Martes', 'Wednesday':'Miércoles', 'Thursday':'Jueves', 'Friday':'Viernes', 'Saturday':'Sábado', 'Sunday':'Domingo'}
+            df_ins['Día Semana'] = df_ins['Día Semana'].map(dias_es)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("PnL por Día de la Semana")
+                pnl_day = df_ins.groupby('Día Semana')['PnL'].sum().reindex(['Lunes','Martes','Miércoles','Jueves','Viernes']).reset_index()
+                fig_day = px.bar(pnl_day, x='Día Semana', y='PnL', color='PnL', color_continuous_scale=['red', 'green'])
+                st.plotly_chart(fig_day, use_container_width=True)
+                
+            with col2:
+                st.subheader("PnL por Activo")
+                pnl_asset = df_ins.groupby('Activo')['PnL'].sum().reset_index()
+                fig_asset = px.bar(pnl_asset, x='Activo', y='PnL', color='PnL', color_continuous_scale=['red', 'green'])
+                st.plotly_chart(fig_asset, use_container_width=True)
+                
+            col3, col4 = st.columns(2)
+            with col3:
+                st.subheader("Rendimiento por Estrategia")
+                fig_strat = px.box(df_ins, x='Estrategia', y='PnL', points="all")
+                st.plotly_chart(fig_strat, use_container_width=True)
+            with col4:
+                st.subheader("Ratio de Win/Loss")
+                fig_pie = px.pie(df_ins, names='Resultado', values='RR', hole=0.4) # Usamos RR como valor dummy o count
+                st.plotly_chart(fig_pie, use_container_width=True)
+
+    # --- SUB-TAB 2: CALCULADORA ---
+    with tabs[1]:
+        st.subheader("Calculadora de Posición (Prop Firms)")
+        
+        with st.container(border=True):
+            c1, c2, c3 = st.columns(3)
+            account_size = c1.number_input("Tamaño Cuenta", value=50000)
+            risk_pct = c2.number_input("Riesgo %", value=1.0, step=0.1)
+            stop_points = c3.number_input("Stop Loss (Puntos)", value=10.0)
+            
+            c4, c5 = st.columns(2)
+            tick_value = c4.number_input("Valor por Punto (ej. NQ=$20, ES=$50)", value=20.0)
+            
+            risk_amount = account_size * (risk_pct / 100)
+            
+            if stop_points > 0 and tick_value > 0:
+                contracts = risk_amount / (stop_points * tick_value)
+                c5.metric("Contratos a usar", f"{contracts:.1f}", f"Riesgo: ${risk_amount:.0f}")
+                st.info(f"💡 Si tu stop es de **{stop_points} puntos** y quieres perder máximo **${risk_amount:.0f}**, debes entrar con **{int(contracts)} contratos** (redondeado).")
+            else:
+                c5.write("Define Stop y Valor.")
+
+# ==============================================================================
+# ✅ TAB 4: CHECKLIST
 # ==============================================================================
 elif menu == "✅ Checklist Ejecución":
     st.header("⚡ Sala de Operaciones")
@@ -207,11 +268,10 @@ elif menu == "✅ Checklist Ejecución":
         else: st.warning("Completa las reglas.")
 
 # ==============================================================================
-# 📓 TAB 4: DIARIO (CON CORRECCIÓN DE ERROR)
+# 📓 TAB 5: DIARIO
 # ==============================================================================
 elif menu == "📓 Diario de Trades":
     st.header("Diario de Trades")
-
     with st.expander("➕ Registrar Nuevo Trade", expanded=False):
         with st.form("new_trade"):
             c1, c2, c3 = st.columns(3)
@@ -231,12 +291,12 @@ elif menu == "📓 Diario de Trades":
                 df_journal = pd.concat([df_journal, new], ignore_index=True)
                 save_data(df_journal, 'journal'); st.rerun()
 
-    journal_tabs = st.tabs(["🗓️ Vista Calendario PnL", "📝 Vista Tabla Historial"])
+    journal_tabs = st.tabs(["🗓️ Vista Calendario PnL", "📝 Vista Tabla Historial", "🖼️ Galería (Playbook)"])
 
+    # PnL CALENDAR
     with journal_tabs[0]:
         st.subheader(f"Rendimiento: {datetime.now().strftime('%B %Y')}")
         today = date.today()
-        # Aseguramos que Fecha es datetime
         df_journal['Fecha'] = pd.to_datetime(df_journal['Fecha']).dt.date
         df_this_month = df_journal[(pd.to_datetime(df_journal['Fecha']).dt.month == today.month) & (pd.to_datetime(df_journal['Fecha']).dt.year == today.year)]
         daily_pnl_map = df_this_month.groupby('Fecha')['PnL'].sum().to_dict()
@@ -265,15 +325,31 @@ elif menu == "📓 Diario de Trades":
         total_color = "#00C076" if month_total >= 0 else "#FF4D4D"
         st.markdown(f"<h3 style='text-align: center;'>Total Mes: <span style='color:{total_color}; font-size: 1.5em;'>${month_total:,.2f}</span></h3>", unsafe_allow_html=True)
 
+    # TABLE VIEW
     with journal_tabs[1]:
         st.info("💡 Edita directamente. Selecciona fila + Supr para borrar.")
-        # Aquí es donde fallaba antes, ahora con la limpieza en load_data funcionará
         edited = st.data_editor(df_journal.sort_values('Fecha', ascending=False), num_rows="dynamic", key="editor_j", use_container_width=True, column_config={"Screenshot": st.column_config.LinkColumn("Ver Gráfico")})
         if st.button("💾 Guardar Cambios Tabla"):
             save_data(edited, 'journal'); st.success("Guardado.")
+            
+    # PLAYBOOK VIEW
+    with journal_tabs[2]:
+        st.subheader("🏆 Salón de la Fama (Wins con Gráfico)")
+        wins_with_pics = df_journal[(df_journal['Resultado'] == 'WIN') & (df_journal['Screenshot'] != "")]
+        if wins_with_pics.empty:
+            st.info("Aún no tienes trades ganadores con link de captura.")
+        else:
+            for i, row in wins_with_pics.iterrows():
+                with st.container(border=True):
+                    col_img, col_info = st.columns([2, 1])
+                    with col_info:
+                        st.markdown(f"**{row['Fecha']}** | {row['Activo']}")
+                        st.success(f"+${row['PnL']} ({row['Estrategia']})")
+                        st.write(f"_{row['Notas']}_")
+                        st.link_button("Ver Gráfico Completo", row['Screenshot'])
 
 # ==============================================================================
-# 🏦 TAB 5: CUENTAS
+# 🏦 TAB 6: CUENTAS
 # ==============================================================================
 elif menu == "🏦 Cuentas Fondeo":
     st.header("Gestión de Capital")
@@ -287,7 +363,7 @@ elif menu == "🏦 Cuentas Fondeo":
             c1, c2, c3 = st.columns(3); c1.metric(r['Nombre'], f"${r['Balance_Inicial']+pnl_acc:,.2f}", f"{pnl_acc:,.2f}"); prog = min(max(pnl_acc/r['Objetivo_Mensual'],0.0),1.0) if r['Objetivo_Mensual']>0 else 0; c2.progress(prog, f"Objetivo: {prog*100:.1f}%"); c3.metric("Días Payout", days, delta_color="off")
 
 # ==============================================================================
-# 💰 TAB 6: FINANZAS
+# 💰 TAB 7: FINANZAS
 # ==============================================================================
 elif menu == "💰 Finanzas & ROI":
     st.header("Centro Financiero")
