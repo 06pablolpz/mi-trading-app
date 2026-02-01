@@ -45,11 +45,11 @@ st.markdown("""
 # --- GESTIÓN DE ARCHIVOS ---
 FILES = { 
     'journal': 'trading_journal_v5.csv', 
-    'accounts': 'prop_firms.csv', 
+    'accounts': 'prop_firms_v2.csv',  # Cambiamos nombre por nueva estructura
     'finance': 'trading_finances.csv', 
     'objectives': 'objectives.csv', 
     'subs': 'subscriptions.csv',
-    'groups': 'account_groups.csv' # Nuevo archivo para grupos
+    'groups': 'account_groups.csv'
 }
 
 def load_data(key, columns):
@@ -61,41 +61,29 @@ def load_data(key, columns):
 
 def save_data(df, key): df.to_csv(FILES[key], index=False)
 
-# Cargar Datos
+# Cargar Datos (NUEVA ESTRUCTURA DE CUENTAS)
 df_journal = load_data('journal', ['Fecha', 'Cuenta', 'Activo', 'Estrategia', 'Resultado', 'RR', 'PnL', 'Emociones', 'Screenshot', 'Notas'])
-df_accounts = load_data('accounts', ['Nombre', 'Empresa', 'Balance_Inicial', 'Objetivo_Mensual', 'Fecha_Payout'])
+# Cuentas ahora tiene más campos
+df_accounts = load_data('accounts', ['Nombre', 'Empresa', 'Tipo', 'Balance_Inicial', 'Balance_Actual', 'Balance_Objetivo', 'Dias_Objetivo', 'Costo', 'Estado', 'Fecha_Creacion'])
 df_finance = load_data('finance', ['Fecha', 'Tipo', 'Concepto', 'Monto'])
 df_objectives = load_data('objectives', ['ID', 'Tarea', 'Tipo', 'Fecha_Limite', 'Estado', 'Target_Dinero'])
 df_subs = load_data('subs', ['Servicio', 'Monto', 'Dia_Renovacion'])
-df_groups = load_data('groups', ['Nombre_Grupo', 'Cuentas']) # Formato Cuentas: "Apex1,Apex2,Apex3"
+df_groups = load_data('groups', ['Nombre_Grupo', 'Cuentas'])
 
-# --- SIDEBAR & BACKUP SYSTEM ---
+# --- SIDEBAR & BACKUP ---
 st.sidebar.title("🧿 Life & Trading OS")
 
-# SISTEMA DE BACKUP
 with st.sidebar.expander("💾 SEGURIDAD DATOS", expanded=False):
-    st.warning("Descarga tus datos regularmente si usas la versión Cloud.")
-    
-    # Crear un ZIP o un CSV concatenado simple para descargar
-    # Para simplificar, ofrecemos descargar el JOURNAL que es lo más importante
     csv_buffer = io.BytesIO()
     df_journal.to_csv(csv_buffer, index=False)
-    st.download_button(
-        label="Descargar Diario (CSV)",
-        data=csv_buffer.getvalue(),
-        file_name="backup_journal.csv",
-        mime="text/csv",
-    )
-    
-    # Subir Backup
+    st.download_button("Descargar Diario (CSV)", data=csv_buffer.getvalue(), file_name="backup_journal.csv", mime="text/csv")
     uploaded_file = st.file_uploader("Restaurar Diario", type=['csv'])
-    if uploaded_file is not None:
-        if st.button("🚨 SOBRESCRIBIR DATOS"):
-            df_restored = pd.read_csv(uploaded_file)
-            save_data(df_restored, 'journal')
-            st.success("Datos restaurados. Recarga la página.")
+    if uploaded_file is not None and st.button("🚨 SOBRESCRIBIR"):
+        df_restored = pd.read_csv(uploaded_file)
+        save_data(df_restored, 'journal')
+        st.success("Restaurado.")
 
-menu = st.sidebar.radio("Navegación", ["📊 Dashboard & Meta", "🎯 Objetivos & Calendario", "🧠 Insights & Herramientas", "✅ Checklist Ejecución", "📓 Diario de Trades (Multi)", "🏦 Cuentas & Grupos", "💰 Finanzas & ROI"])
+menu = st.sidebar.radio("Navegación", ["📊 Dashboard & Meta", "🎯 Objetivos & Calendario", "🧠 Insights & Herramientas", "✅ Checklist Ejecución", "📓 Diario de Trades (Multi)", "🏦 Cuentas & Historial", "💰 Finanzas & ROI"])
 
 # --- UTILS ---
 def kpi_card(title, value, type="currency", color_logic=True):
@@ -204,8 +192,6 @@ elif menu == "🎯 Objetivos & Calendario":
                     else:
                         events_html = ""
                         current_date = date(year, month, day)
-                        for _, acc in df_accounts.iterrows():
-                            if pd.to_datetime(acc['Fecha_Payout']).date() == current_date: events_html += f"<span class='event-tag evt-payout'>💰 Payout {acc['Empresa']}</span>"
                         for _, sub in df_subs.iterrows():
                             if int(sub['Dia_Renovacion']) == day: events_html += f"<span class='event-tag evt-bill'>💸 {sub['Servicio']}</span>"
                         for _, obj in df_objectives.iterrows():
@@ -215,16 +201,13 @@ elif menu == "🎯 Objetivos & Calendario":
                         st.markdown(f"<div class='calendar-day-agenda'><strong>{day}</strong><br>{events_html}</div>", unsafe_allow_html=True)
 
 # ==============================================================================
-# 🧠 TAB 3: INSIGHTS Y HERRAMIENTAS
+# 🧠 TAB 3: INSIGHTS
 # ==============================================================================
 elif menu == "🧠 Insights & Herramientas":
     st.header("Análisis Profundo y Utilidades")
-    
     tabs = st.tabs(["📊 Analítica Avanzada (Insights)", "🧮 Calculadora de Riesgo"])
-    
     with tabs[0]:
-        if df_journal.empty:
-            st.info("Necesitas registrar trades para ver analíticas.")
+        if df_journal.empty: st.info("Necesitas registrar trades para ver analíticas.")
         else:
             df_ins = df_journal.copy()
             df_ins['Fecha'] = pd.to_datetime(df_ins['Fecha'])
@@ -253,7 +236,6 @@ elif menu == "🧠 Insights & Herramientas":
                 st.subheader("Ratio de Win/Loss")
                 fig_pie = px.pie(df_ins, names='Resultado', values='RR', hole=0.4) 
                 st.plotly_chart(fig_pie, use_container_width=True)
-
     with tabs[1]:
         st.subheader("Calculadora de Posición (Prop Firms)")
         with st.container(border=True):
@@ -291,68 +273,48 @@ elif menu == "✅ Checklist Ejecución":
         else: st.warning("Completa las reglas.")
 
 # ==============================================================================
-# 📓 TAB 5: DIARIO (MULTI-ACCOUNT UPDATE)
+# 📓 TAB 5: DIARIO
 # ==============================================================================
 elif menu == "📓 Diario de Trades (Multi)":
     st.header("Diario de Trades")
     
     with st.expander("➕ Registrar Nuevo Trade (Soporte Multi-Cuenta)", expanded=False):
-        
-        # --- SELECCION DE MODO ---
         mode = st.radio("Modo de Entrada:", ["Cuenta Única", "Grupo de Cuentas"], horizontal=True)
-        
         with st.form("new_trade"):
             c1, c2, c3 = st.columns(3)
             d = c1.date_input("Fecha", date.today())
-            
-            # Lógica dinámica según modo
             selected_accounts = []
             if mode == "Cuenta Única":
-                acc_list = df_accounts['Nombre'].unique() if not df_accounts.empty else ["General"]
+                # Filtrar solo cuentas activas para el desplegable
+                acc_list = df_accounts[df_accounts['Estado']=='Activa']['Nombre'].unique() if not df_accounts.empty else ["General"]
                 acc_single = c2.selectbox("Cuenta", acc_list)
                 selected_accounts = [acc_single]
             else:
-                if df_groups.empty:
-                    c2.warning("No hay grupos creados. Ve a la pestaña 'Cuentas & Grupos'.")
+                if df_groups.empty: c2.warning("No hay grupos creados.")
                 else:
                     grp_name = c2.selectbox("Seleccionar Grupo", df_groups['Nombre_Grupo'].unique())
-                    # Obtener cuentas del grupo
-                    if grp_name:
-                        cuentas_str = df_groups[df_groups['Nombre_Grupo'] == grp_name]['Cuentas'].values[0]
-                        selected_accounts = cuentas_str.split(',')
-                        c2.caption(f"Se replicará en: {', '.join(selected_accounts)}")
+                    if grp_name: selected_accounts = df_groups[df_groups['Nombre_Grupo'] == grp_name]['Cuentas'].values[0].split(',')
 
             asst = c3.text_input("Activo", "NQ")
             c4, c5, c6 = st.columns(3)
             s = c4.selectbox("Estrategia", ["Rangos", "Canales Anchos", "Canales Estrechos"])
             res = c5.selectbox("Resultado", ["WIN", "LOSS", "BE"])
-            pn = c6.number_input("PnL por Cuenta ($)", step=10.0, help="Ingresa el PnL de UNA sola cuenta. Se multiplicará.")
+            pn = c6.number_input("PnL por Cuenta ($)", step=10.0)
             c7, c8, c9 = st.columns(3)
             rr = c7.number_input("RR", 2.0)
             emo = c8.selectbox("Psicología", ["Disciplinado", "Miedo", "Venganza", "FOMO"])
             link = c9.text_input("Link Captura")
             
             if st.form_submit_button("Guardar Trade(s)"):
-                if not selected_accounts:
-                    st.error("No hay cuentas seleccionadas.")
+                if not selected_accounts: st.error("No hay cuentas seleccionadas.")
                 else:
                     new_rows = []
                     for acc_name in selected_accounts:
-                        new_rows.append({
-                            'Fecha': d, 'Cuenta': acc_name.strip(), 'Activo': asst, 
-                            'Estrategia': s, 'Resultado': res, 'RR': rr, 'PnL': pn, 
-                            'Emociones': emo, 'Screenshot': link, 'Notas': f"Grupo: {mode}"
-                        })
-                    
-                    df_new = pd.DataFrame(new_rows)
-                    df_journal = pd.concat([df_journal, df_new], ignore_index=True)
-                    save_data(df_journal, 'journal')
-                    st.success(f"✅ Trade replicado en {len(selected_accounts)} cuentas correctamente.")
-                    st.rerun()
+                        new_rows.append({'Fecha': d, 'Cuenta': acc_name.strip(), 'Activo': asst, 'Estrategia': s, 'Resultado': res, 'RR': rr, 'PnL': pn, 'Emociones': emo, 'Screenshot': link, 'Notas': f"Grupo: {mode}"})
+                    df_journal = pd.concat([df_journal, pd.DataFrame(new_rows)], ignore_index=True)
+                    save_data(df_journal, 'journal'); st.success(f"✅ Trade replicado en {len(selected_accounts)} cuentas."); st.rerun()
 
     journal_tabs = st.tabs(["🗓️ Vista Calendario PnL", "📝 Vista Tabla Historial", "🖼️ Galería (Playbook)"])
-
-    # PnL CALENDAR
     with journal_tabs[0]:
         st.subheader(f"Rendimiento: {datetime.now().strftime('%B %Y')}")
         today = date.today()
@@ -360,7 +322,6 @@ elif menu == "📓 Diario de Trades (Multi)":
         df_this_month = df_journal[(pd.to_datetime(df_journal['Fecha']).dt.month == today.month) & (pd.to_datetime(df_journal['Fecha']).dt.year == today.year)]
         daily_pnl_map = df_this_month.groupby('Fecha')['PnL'].sum().to_dict()
         month_total = df_this_month['PnL'].sum()
-
         cal = calendar.monthcalendar(today.year, today.month)
         cols = st.columns(7)
         days_name = ['LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB', 'DOM']
@@ -373,94 +334,178 @@ elif menu == "📓 Diario de Trades (Multi)":
                     else:
                         current_date = date(today.year, today.month, day)
                         pnl = daily_pnl_map.get(current_date, 0)
-                        cell_class = "pnl-cell"
-                        text_class = ""
-                        pnl_display = "-"
+                        cell_class = "pnl-cell"; text_class = ""; pnl_display = "-"
                         if pnl > 0: cell_class += " win-day"; text_class = "win-text"; pnl_display = f"+${pnl:,.0f}"
                         elif pnl < 0: cell_class += " loss-day"; text_class = "loss-text"; pnl_display = f"-${abs(pnl):,.0f}"
                         st.markdown(f"<div class='{cell_class}'><div class='cell-date'>{day}</div><div class='cell-pnl {text_class}'>{pnl_display}</div></div>", unsafe_allow_html=True)
-        
         st.markdown("---")
         total_color = "#00C076" if month_total >= 0 else "#FF4D4D"
         st.markdown(f"<h3 style='text-align: center;'>Total Mes: <span style='color:{total_color}; font-size: 1.5em;'>${month_total:,.2f}</span></h3>", unsafe_allow_html=True)
 
-    # TABLE VIEW
     with journal_tabs[1]:
         st.info("💡 Edita directamente. Selecciona fila + Supr para borrar.")
         edited = st.data_editor(df_journal.sort_values('Fecha', ascending=False), num_rows="dynamic", key="editor_j", use_container_width=True, column_config={"Screenshot": st.column_config.LinkColumn("Ver Gráfico")})
-        if st.button("💾 Guardar Cambios Tabla"):
-            save_data(edited, 'journal'); st.success("Guardado.")
-            
-    # PLAYBOOK VIEW
+        if st.button("💾 Guardar Cambios Tabla"): save_data(edited, 'journal'); st.success("Guardado.")
     with journal_tabs[2]:
         st.subheader("🏆 Salón de la Fama")
         wins_with_pics = df_journal[(df_journal['Resultado'] == 'WIN') & (df_journal['Screenshot'] != "")]
-        if wins_with_pics.empty:
-            st.info("Aún no tienes trades ganadores con link de captura.")
+        if wins_with_pics.empty: st.info("Aún no tienes trades ganadores con link de captura.")
         else:
             for i, row in wins_with_pics.iterrows():
                 with st.container(border=True):
                     col_img, col_info = st.columns([2, 1])
                     with col_info:
-                        st.markdown(f"**{row['Fecha']}** | {row['Activo']}")
-                        st.success(f"+${row['PnL']} ({row['Estrategia']})")
-                        st.write(f"_{row['Notas']}_")
-                        st.link_button("Ver Gráfico Completo", row['Screenshot'])
+                        st.markdown(f"**{row['Fecha']}** | {row['Activo']}"); st.success(f"+${row['PnL']} ({row['Estrategia']})"); st.write(f"_{row['Notas']}_"); st.link_button("Ver Gráfico Completo", row['Screenshot'])
 
 # ==============================================================================
-# 🏦 TAB 6: CUENTAS Y GRUPOS (NUEVO)
+# 🏦 TAB 6: CUENTAS Y GRUPOS (NUEVA LOGICA V9)
 # ==============================================================================
-elif menu == "🏦 Cuentas & Grupos":
+elif menu == "🏦 Cuentas & Historial":
     st.header("Gestión de Capital")
     
-    tabs_acc = st.tabs(["Cuentas Individuales", "👥 Grupos de Cuentas"])
+    tabs_acc = st.tabs(["📋 Gestión Cuentas", "📜 Historial (Perdidas/Pasadas)", "👥 Grupos de Cuentas"])
     
-    # --- CUENTAS ---
+    # --- SUB-TAB 1: GESTIÓN DE CUENTAS ACTIVAS ---
     with tabs_acc[0]:
-        with st.expander("Añadir Cuenta"):
+        
+        # FORMULARIO AÑADIR CUENTA (MEJORADO)
+        with st.expander("➕ Añadir Nueva Cuenta", expanded=False):
             with st.form("acc_f"):
-                n = st.text_input("Nombre"); e = st.text_input("Empresa"); b = st.number_input("Balance Inicial", 50000.0); g = st.number_input("Objetivo", 3000.0); p = st.date_input("Fecha Payout")
-                if st.form_submit_button("Crear"): df_accounts = pd.concat([df_accounts, pd.DataFrame([{'Nombre': n, 'Empresa': e, 'Balance_Inicial': b, 'Objetivo_Mensual': g, 'Fecha_Payout': p}])], ignore_index=True); save_data(df_accounts, 'accounts'); st.rerun()
-        
-        for i, r in df_accounts.iterrows():
-            pnl_acc = df_journal[df_journal['Cuenta']==r['Nombre']]['PnL'].sum(); days = (pd.to_datetime(r['Fecha_Payout']).date() - date.today()).days
-            with st.container(border=True):
-                c1, c2, c3 = st.columns(3); c1.metric(r['Nombre'], f"${r['Balance_Inicial']+pnl_acc:,.2f}", f"{pnl_acc:,.2f}"); prog = min(max(pnl_acc/r['Objetivo_Mensual'],0.0),1.0) if r['Objetivo_Mensual']>0 else 0; c2.progress(prog, f"Objetivo: {prog*100:.1f}%"); c3.metric("Días Payout", days, delta_color="off")
+                c1, c2, c3 = st.columns(3)
+                n = c1.text_input("Nombre (ej. Apex 01)")
+                e = c2.text_input("Empresa (ej. Topstep)")
+                t = c3.selectbox("Tipo", ["Examen", "Funded"])
+                
+                c4, c5, c6 = st.columns(3)
+                bi = c4.number_input("Balance Inicial", value=50000.0)
+                # El balance actual empieza igual al inicial por defecto
+                bo = c5.number_input("Balance Objetivo", value=53000.0)
+                do = c6.number_input("Días Winning Objetivo", value=5)
+                
+                cost = st.number_input("Coste de la prueba ($) [Opcional]", value=0.0)
+                
+                if st.form_submit_button("Crear Cuenta"):
+                    # Crear cuenta
+                    new_acc = pd.DataFrame([{
+                        'Nombre': n, 'Empresa': e, 'Tipo': t, 
+                        'Balance_Inicial': bi, 'Balance_Actual': bi, # Empieza igual
+                        'Balance_Objetivo': bo, 'Dias_Objetivo': do, 
+                        'Costo': cost, 'Estado': 'Activa', 
+                        'Fecha_Creacion': date.today()
+                    }])
+                    df_accounts = pd.concat([df_accounts, new_acc], ignore_index=True)
+                    save_data(df_accounts, 'accounts')
+                    
+                    # Si hay coste, añadir a finanzas automáticamente
+                    if cost > 0:
+                        new_exp = pd.DataFrame([{
+                            'Fecha': date.today(), 'Tipo': 'GASTO (Cuenta)', 
+                            'Concepto': f"Compra {n} ({e})", 'Monto': -abs(cost)
+                        }])
+                        df_finance = pd.concat([df_finance, new_exp], ignore_index=True)
+                        save_data(df_finance, 'finance')
+                        
+                    st.success(f"Cuenta {n} creada y gasto registrado.")
+                    st.rerun()
 
-    # --- GRUPOS (NUEVO) ---
-    with tabs_acc[1]:
-        st.subheader("Crear Grupo de Réplica")
-        st.info("Agrupa cuentas para registrar un mismo trade en todas a la vez.")
+        st.markdown("---")
         
+        # MOSTRAR CUENTAS ACTIVAS
+        active_accounts = df_accounts[df_accounts['Estado'] == 'Activa']
+        
+        if active_accounts.empty:
+            st.info("No tienes cuentas activas. Crea una arriba.")
+        else:
+            for index, row in active_accounts.iterrows():
+                with st.container(border=True):
+                    # CABECERA
+                    st.markdown(f"### 💳 {row['Nombre']} <span style='font-size:0.8em; color:grey'>({row['Empresa']} - {row['Tipo']})</span>", unsafe_allow_html=True)
+                    
+                    # DATOS
+                    col_met1, col_met2, col_met3 = st.columns(3)
+                    
+                    # 1. BALANCE ACTUAL (Editado por usuario)
+                    # Calculamos el PnL acumulado en el journal para referencia visual, pero usamos el Balance Actual guardado
+                    pnl_journal = df_journal[df_journal['Cuenta'] == row['Nombre']]['PnL'].sum()
+                    
+                    col_met1.metric("Balance Actual", f"${row['Balance_Actual']:,.2f}", f"PnL Journal: ${pnl_journal:,.2f}")
+                    
+                    # 2. PROGRESO WINNING DAYS (Calculado Auto)
+                    # Filtramos trades de esta cuenta, agrupamos por fecha, sumamos PnL diario
+                    if not df_journal.empty:
+                        trades_acc = df_journal[df_journal['Cuenta'] == row['Nombre']]
+                        if not trades_acc.empty:
+                            daily_pnl = trades_acc.groupby('Fecha')['PnL'].sum()
+                            winning_days = daily_pnl[daily_pnl >= 150].count() # Umbral $150
+                        else:
+                            winning_days = 0
+                    else:
+                        winning_days = 0
+                        
+                    col_met2.metric("Winning Days (+150$)", f"{winning_days}/{int(row['Dias_Objetivo'])}")
+                    
+                    # 3. PROGRESO DINERO
+                    target_money = row['Balance_Objetivo'] - row['Balance_Inicial']
+                    current_money = row['Balance_Actual'] - row['Balance_Inicial']
+                    prog_money = min(max(current_money / target_money, 0.0), 1.0) if target_money > 0 else 0
+                    col_met3.progress(prog_money, f"Objetivo Dinero: ${current_money:,.0f} / ${target_money:,.0f}")
+
+                    # --- ZONA DE EDICIÓN Y ACCIONES ---
+                    with st.expander("⚙️ Gestionar / Editar / Payout"):
+                        with st.form(f"edit_{index}"):
+                            c_e1, c_e2 = st.columns(2)
+                            new_bal = c_e1.number_input("Editar Balance Actual", value=float(row['Balance_Actual']), step=100.0, key=f"bal_{index}")
+                            action = c_e2.selectbox("Acción Estado", ["Mantener Activa", "Pasar a Funded 🏆", "Archivar (Perdida) 💀", "Archivar (Retirada) 🏁"], key=f"act_{index}")
+                            
+                            if st.form_submit_button("Actualizar Cuenta"):
+                                # Actualizar Balance
+                                df_accounts.at[index, 'Balance_Actual'] = new_bal
+                                
+                                # Cambio de Estado
+                                if action == "Pasar a Funded 🏆":
+                                    df_accounts.at[index, 'Tipo'] = "Funded"
+                                    # Resetear balance inicial al nuevo si se quiere, o dejarlo. 
+                                    st.success(f"¡Felicidades! {row['Nombre']} ahora es Funded.")
+                                    
+                                elif "Archivar" in action:
+                                    df_accounts.at[index, 'Estado'] = "Historico"
+                                    # Podríamos añadir una nota de por qué se archivó en el nombre o columna nueva
+                                    status_note = "Perdida" if "Perdida" in action else "Retirada"
+                                    st.warning(f"Cuenta movida al historial como {status_note}.")
+                                
+                                save_data(df_accounts, 'accounts')
+                                st.rerun()
+
+    # --- SUB-TAB 2: HISTORIAL ---
+    with tabs_acc[1]:
+        st.subheader("Cementerio y Hall de la Fama")
+        history_accounts = df_accounts[df_accounts['Estado'] != 'Activa']
+        if history_accounts.empty:
+            st.info("No hay cuentas en el historial.")
+        else:
+            st.dataframe(history_accounts, use_container_width=True)
+            if st.button("🗑️ Borrar Historial Definitivamente"):
+                # Mantener solo activas
+                df_accounts = df_accounts[df_accounts['Estado'] == 'Activa']
+                save_data(df_accounts, 'accounts')
+                st.rerun()
+
+    # --- SUB-TAB 3: GRUPOS ---
+    with tabs_acc[2]:
+        st.subheader("Crear Grupo de Réplica")
         with st.form("grp_form"):
-            g_name = st.text_input("Nombre del Grupo (ej. Evaluaciones Apex)")
-            if not df_accounts.empty:
-                g_accs = st.multiselect("Selecciona Cuentas", df_accounts['Nombre'].unique())
-            else:
-                st.warning("Primero crea cuentas individuales.")
-                g_accs = []
+            g_name = st.text_input("Nombre del Grupo")
+            # Solo mostrar cuentas activas para agrupar
+            active_names = df_accounts[df_accounts['Estado'] == 'Activa']['Nombre'].unique()
+            g_accs = st.multiselect("Selecciona Cuentas", active_names)
             
             if st.form_submit_button("Guardar Grupo"):
                 if g_name and g_accs:
-                    cuentas_join = ",".join(g_accs)
-                    new_grp = pd.DataFrame([{'Nombre_Grupo': g_name, 'Cuentas': cuentas_join}])
+                    new_grp = pd.DataFrame([{'Nombre_Grupo': g_name, 'Cuentas': ",".join(g_accs)}])
                     df_groups = pd.concat([df_groups, new_grp], ignore_index=True)
-                    save_data(df_groups, 'groups')
-                    st.success("Grupo creado.")
-                    st.rerun()
-                else:
-                    st.error("Faltan datos.")
+                    save_data(df_groups, 'groups'); st.success("Grupo creado."); st.rerun()
         
-        if not df_groups.empty:
-            st.subheader("Grupos Activos")
-            st.dataframe(df_groups, use_container_width=True)
-            
-            # Borrar Grupos
-            st.caption("Para borrar un grupo, selecciona y pulsa Supr en la tabla (si está habilitado) o edita el CSV.")
-            # Para simplificar, mostramos un botón de reset de grupos si se necesita
-            if st.button("⚠️ Borrar Todos los Grupos"):
-                save_data(pd.DataFrame(columns=['Nombre_Grupo', 'Cuentas']), 'groups')
-                st.rerun()
+        if not df_groups.empty: st.dataframe(df_groups, use_container_width=True)
 
 # ==============================================================================
 # 💰 TAB 7: FINANZAS
