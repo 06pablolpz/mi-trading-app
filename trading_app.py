@@ -16,7 +16,7 @@ st.markdown("""
 <style>
     /* Ajuste global para dar aire al texto */
     .block-container {
-        padding-top: 3rem !important; /* Más espacio arriba para que no se coma el título */
+        padding-top: 3rem !important;
         padding-bottom: 5rem;
     }
     
@@ -29,13 +29,13 @@ st.markdown("""
         text-align: center;
         margin-bottom: 15px;
         border: 1px solid rgba(128, 128, 128, 0.2);
-        height: 100%; /* Igualar alturas */
+        height: 100%;
     }
     
     .kpi-title {
         color: var(--text-color);
         opacity: 0.8;
-        font-size: 14px; /* Letra un pelín más grande */
+        font-size: 14px;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 1px;
@@ -43,10 +43,10 @@ st.markdown("""
     }
     
     .kpi-value {
-        font-size: 28px; /* Número más grande */
+        font-size: 28px;
         font-weight: 800;
         color: var(--text-color);
-        line-height: 1.2; /* Evitar cortes */
+        line-height: 1.2;
     }
     
     /* BARRAS DE PROGRESO */
@@ -68,7 +68,7 @@ st.markdown("""
     
     /* CELDAS DEL CALENDARIO */
     .calendar-day-agenda, .pnl-cell {
-        min-height: 120px; /* Más altura para que quepan cosas */
+        min-height: 120px;
         border: 1px solid rgba(128, 128, 128, 0.2);
         margin: 4px;
         background-color: var(--secondary-background-color);
@@ -139,7 +139,7 @@ def get_connection():
     client = gspread.authorize(creds)
     return client
 
-# --- GESTIÓN DE DATOS (CON CACHÉ INTELIGENTE) ---
+# --- GESTIÓN DE DATOS (CLOUD + CACHÉ) ---
 TABS = {'journal': 'Journal', 'accounts': 'Cuentas', 'finance': 'Finanzas', 'objectives': 'Objetivos', 'subs': 'Suscripciones', 'groups': 'Grupos'}
 COLS = {
     'journal': ['Fecha', 'Cuenta', 'Activo', 'Estrategia', 'Resultado', 'RR', 'PnL', 'Emociones', 'Screenshot', 'Notas'],
@@ -150,7 +150,6 @@ COLS = {
     'groups': ['Nombre_Grupo', 'Cuentas']
 }
 
-# AQUÍ ESTÁ LA MAGIA: TTL=60s significa que guarda los datos en memoria 1 minuto
 @st.cache_data(ttl=60)
 def load_data(key):
     client = get_connection()
@@ -169,11 +168,10 @@ def load_data(key):
         
         # Convertir numéricos
         for col in df.columns:
-            if col in ['PnL', 'RR', 'Monto', 'Balance_Inicial', 'Balance_Actual', 'Balance_Objetivo', 'Costo', 'Target_Dinero']:
+            if col in ['PnL', 'RR', 'Monto', 'Balance_Inicial', 'Balance_Actual', 'Balance_Objetivo', 'Costo', 'Target_Dinero', 'Dias_Objetivo']:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
         return df
     except Exception as e:
-        # st.error(f"Error carga: {e}") # Ocultar error visual si es momentáneo
         return pd.DataFrame(columns=COLS[key])
 
 def save_data(df, key):
@@ -183,12 +181,11 @@ def save_data(df, key):
         worksheet = sh.worksheet(TABS[key])
         worksheet.clear()
         worksheet.update([df.columns.values.tolist()] + df.values.tolist())
-        # IMPORTANTE: Limpiamos la caché para que al recargar se vean los cambios
         st.cache_data.clear()
     except Exception as e:
         st.error(f"Error guardando: {e}")
 
-# Carga inicial rápida (desde caché si existe)
+# Carga inicial
 df_journal = load_data('journal')
 df_accounts = load_data('accounts')
 df_finance = load_data('finance')
@@ -209,7 +206,7 @@ def kpi_card(title, value, type="currency", color_logic=True):
 # --- SIDEBAR ---
 st.sidebar.title("☁️ Trading OS")
 st.sidebar.caption(f"⚡ Conectado: {SHEET_NAME}")
-if st.sidebar.button("🔄 Forzar Recarga"):
+if st.sidebar.button("🔄 Sincronizar Ahora"):
     st.cache_data.clear()
     st.rerun()
 
@@ -254,7 +251,7 @@ if menu == "📊 Dashboard":
         wins = len(df_journal[df_journal['Resultado']=='WIN'])
         wr = (wins/len(df_journal)*100) if len(df_journal)>0 else 0
         c1, c2, c3, c4 = st.columns(4)
-        with c1: kpi_card("PnL Latente", pnl, "currency")
+        with c1: kpi_card("PnL Operativo", pnl, "currency")
         with c2: kpi_card("Win Rate", wr, "percent")
         with c3: kpi_card("Trades", len(df_journal), "number", False)
         with c4: kpi_card("Avg RR", df_journal['RR'].mean(), "number", False)
@@ -302,19 +299,7 @@ elif menu == "🎯 Agenda":
             for i, d in enumerate(week):
                 with cols[idx := i]:
                     if d != 0:
-                        evts = ""
-                        # Buscar eventos simples
-                        curr = date(datetime.now().year, datetime.now().month, d)
-                        # Payouts
-                        for _, acc in df_accounts.iterrows():
-                            # Lógica simple: ganar > 150 cuenta como día. Aquí solo marcamos eventos fijos si los hubiera
-                            pass
-                        
-                        st.markdown(f"""
-                        <div class='calendar-day-agenda'>
-                            <div class='cell-date'>{d}</div>
-                            {evts}
-                        </div>""", unsafe_allow_html=True)
+                        st.markdown(f"""<div class='calendar-day-agenda'><div class='cell-date'>{d}</div></div>""", unsafe_allow_html=True)
                     else:
                         st.markdown("<div style='min-height:120px'></div>", unsafe_allow_html=True)
 
@@ -355,6 +340,8 @@ elif menu == "✅ Checklist":
             if st.checkbox("1. ¿Mínimo 3 patas/extremos?") and st.checkbox("2. ¿Entrada en extremo?") and st.checkbox("3. ¿Patrón H2/L2 claro?"): ok = True
         elif strat == "CANALES ANCHOS":
             if st.checkbox("1. ¿A favor de tendencia?") and st.checkbox("2. ¿Pullback profundo?") and st.checkbox("3. ¿Stop protegido?"): ok = True
+        elif strat == "CANALES ESTRECHOS":
+            if st.checkbox("1. ¿Retroceso 50%?") and st.checkbox("2. ¿Pullback corto?") and st.checkbox("3. ¿Sin rechazo fuerte?"): ok = True
         
         if ok: st.balloons(); st.success("✅ SETUP VÁLIDO - ¡DISPARA!")
 
@@ -428,47 +415,94 @@ elif menu == "📓 Diario (Multi)":
                     st.markdown("<div style='min-height:120px'></div>", unsafe_allow_html=True)
 
 # ==============================================================================
-# 🏦 TAB 6: CUENTAS
+# 🏦 TAB 6: CUENTAS (COMPLETO V11.1)
 # ==============================================================================
 elif menu == "🏦 Cuentas":
     st.header("Gestión de Capital")
     
-    # Formulario creación
-    with st.expander("Crear Cuenta"):
-        with st.form("new_acc"):
-            n = st.text_input("Nombre")
-            bi = st.number_input("Inicial", 50000.0)
-            ba = st.number_input("Actual", 50000.0)
-            bo = st.number_input("Objetivo", 53000.0)
-            if st.form_submit_button("Crear"):
-                new = pd.DataFrame([{
-                    'Nombre': n, 'Empresa': 'Prop', 'Tipo': 'Examen', 
-                    'Balance_Inicial': bi, 'Balance_Actual': ba, 'Balance_Objetivo': bo, 
-                    'Dias_Objetivo': 5, 'Costo': 0, 'Estado': 'Activa', 'Fecha_Creacion': str(date.today())
-                }])
-                df_accounts = pd.concat([df_accounts, new], ignore_index=True)
-                save_data(df_accounts, 'accounts'); st.rerun()
-
-    # Listado
-    active = df_accounts[df_accounts['Estado'] == 'Activa']
-    if active.empty: st.info("No hay cuentas activas.")
+    tabs_acc = st.tabs(["📋 Gestión Cuentas", "📜 Historial", "👥 Grupos"])
     
-    for i, row in active.iterrows():
-        with st.container(border=True):
-            c1, c2, c3 = st.columns([1, 2, 1])
-            c1.metric(row['Nombre'], f"${row['Balance_Actual']:,.2f}")
-            
-            # Barra progreso
-            tgt = row['Balance_Objetivo'] - row['Balance_Inicial']
-            curr = row['Balance_Actual'] - row['Balance_Inicial']
-            pg = min(max(curr/tgt, 0.0), 1.0) if tgt != 0 else 0
-            c2.progress(pg, f"Objetivo: ${row['Balance_Objetivo']:,.0f}")
-            
-            # Edición rápida
-            new_val = c3.number_input("Saldo", value=float(row['Balance_Actual']), key=f"b_{i}", label_visibility="collapsed")
-            if c3.button("💾", key=f"s_{i}"):
-                df_accounts.at[i, 'Balance_Actual'] = new_val
-                save_data(df_accounts, 'accounts'); st.rerun()
+    with tabs_acc[0]:
+        with st.expander("➕ Añadir Nueva Cuenta", expanded=False):
+            with st.form("acc_f"):
+                c1, c2, c3 = st.columns(3)
+                n = c1.text_input("Nombre (ej. Apex 01)")
+                e = c2.text_input("Empresa (ej. Topstep)")
+                t = c3.selectbox("Tipo", ["Examen", "Funded"])
+                c4, c5, c6 = st.columns(3)
+                bi = c4.number_input("Balance Inicial", value=50000.0)
+                ba = c5.number_input("Balance Actual", value=50000.0)
+                bo = c6.number_input("Balance Objetivo", value=53000.0)
+                c7, c8 = st.columns(2)
+                do = c7.number_input("Días Winning Objetivo", value=5)
+                cost = c8.number_input("Coste ($)", value=0.0)
+                
+                if st.form_submit_button("Crear Cuenta"):
+                    new_acc = pd.DataFrame([{'Nombre': n, 'Empresa': e, 'Tipo': t, 'Balance_Inicial': bi, 'Balance_Actual': ba, 'Balance_Objetivo': bo, 'Dias_Objetivo': do, 'Costo': cost, 'Estado': 'Activa', 'Fecha_Creacion': str(date.today())}])
+                    df_accounts = pd.concat([df_accounts, new_acc], ignore_index=True)
+                    save_data(df_accounts, 'accounts')
+                    if cost > 0:
+                        new_exp = pd.DataFrame([{'Fecha': str(date.today()), 'Tipo': 'GASTO (Cuenta)', 'Concepto': f"Compra {n} ({e})", 'Monto': -abs(cost)}])
+                        df_finance = pd.concat([df_finance, new_exp], ignore_index=True); save_data(df_finance, 'finance')
+                    st.success(f"Cuenta {n} creada."); st.rerun()
+
+        st.markdown("---")
+        active_accounts = df_accounts[df_accounts['Estado'] == 'Activa']
+        if active_accounts.empty: st.info("No tienes cuentas activas.")
+        else:
+            for index, row in active_accounts.iterrows():
+                with st.container(border=True):
+                    st.markdown(f"### 💳 {row['Nombre']} <span style='font-size:0.8em; opacity:0.6'>({row['Empresa']} - {row['Tipo']})</span>", unsafe_allow_html=True)
+                    col_met1, col_met2, col_met3 = st.columns(3)
+                    
+                    # Logica PnL y Winning Days
+                    pnl_journal = 0.0
+                    winning_days = 0
+                    if not df_journal.empty:
+                        trades_acc = df_journal[df_journal['Cuenta'] == row['Nombre']]
+                        if not trades_acc.empty:
+                            pnl_journal = trades_acc['PnL'].sum()
+                            daily_pnl = trades_acc.groupby('Fecha')['PnL'].sum()
+                            winning_days = daily_pnl[daily_pnl >= 150].count()
+
+                    col_met1.metric("Balance Actual", f"${row['Balance_Actual']:,.2f}", f"PnL Journal: ${pnl_journal:,.2f}")
+                    col_met2.metric("Winning Days (+150$)", f"{winning_days}/{int(row['Dias_Objetivo'])}")
+                    
+                    target_money = row['Balance_Objetivo'] - row['Balance_Inicial']
+                    current_money = row['Balance_Actual'] - row['Balance_Inicial']
+                    prog_money = min(max(current_money / target_money, 0.0), 1.0) if target_money > 0 else 0
+                    col_met3.progress(prog_money, f"Objetivo: ${current_money:,.0f} / ${target_money:,.0f}")
+
+                    with st.expander("⚙️ Editar / Payout"):
+                        with st.form(f"edit_{index}"):
+                            c_e1, c_e2 = st.columns(2)
+                            new_bal = c_e1.number_input("Editar Balance Actual", value=float(row['Balance_Actual']), step=100.0, key=f"bal_{index}")
+                            action = c_e2.selectbox("Acción", ["Mantener Activa", "Pasar a Funded 🏆", "Archivar (Perdida) 💀", "Archivar (Retirada) 🏁"], key=f"act_{index}")
+                            if st.form_submit_button("Actualizar"):
+                                df_accounts.at[index, 'Balance_Actual'] = new_bal
+                                if action == "Pasar a Funded 🏆": df_accounts.at[index, 'Tipo'] = "Funded"
+                                elif "Archivar" in action: df_accounts.at[index, 'Estado'] = "Historico"
+                                save_data(df_accounts, 'accounts'); st.rerun()
+
+    with tabs_acc[1]:
+        st.subheader("Cementerio y Hall de la Fama")
+        history_accounts = df_accounts[df_accounts['Estado'] != 'Activa']
+        if history_accounts.empty: st.info("No hay cuentas en el historial.")
+        else:
+            st.dataframe(history_accounts, use_container_width=True)
+
+    with tabs_acc[2]:
+        st.subheader("Crear Grupo de Réplica")
+        with st.form("grp_form"):
+            g_name = st.text_input("Nombre del Grupo")
+            active_names = df_accounts[df_accounts['Estado'] == 'Activa']['Nombre'].unique()
+            g_accs = st.multiselect("Selecciona Cuentas", active_names)
+            if st.form_submit_button("Guardar Grupo"):
+                if g_name and g_accs:
+                    new_grp = pd.DataFrame([{'Nombre_Grupo': g_name, 'Cuentas': ",".join(g_accs)}])
+                    df_groups = pd.concat([df_groups, new_grp], ignore_index=True)
+                    save_data(df_groups, 'groups'); st.success("Grupo creado."); st.rerun()
+        if not df_groups.empty: st.dataframe(df_groups, use_container_width=True)
 
 # ==============================================================================
 # 💰 TAB 7: FINANZAS
