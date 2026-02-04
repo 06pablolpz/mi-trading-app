@@ -23,19 +23,19 @@ st.markdown("""
         height: 100%; display: flex; flex-direction: column; justify-content: center;
     }
     .kpi-title {
-        color: var(--text-color); opacity: 0.8; font-size: 14px;
-        font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;
+        color: var(--text-color); opacity: 0.8; font-size: 13px;
+        font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;
     }
-    .kpi-value { font-size: 26px; font-weight: 800; color: var(--text-color); line-height: 1.2; }
+    .kpi-value { font-size: 28px; font-weight: 800; color: var(--text-color); line-height: 1.1; }
     .stProgress > div > div > div > div { background-color: #00C076; }
-    .cal-header { font-weight: bold; text-align: center; padding: 10px; opacity: 0.8; text-transform: uppercase; }
+    .cal-header { font-weight: bold; text-align: center; padding: 8px; opacity: 0.8; text-transform: uppercase; font-size: 0.85em; }
     .pnl-cell, .calendar-day-agenda {
-        min-height: 110px; border: 1px solid rgba(128, 128, 128, 0.2); margin: 4px;
-        background-color: var(--secondary-background-color); padding: 8px; border-radius: 10px;
+        min-height: 100px; border: 1px solid rgba(128, 128, 128, 0.2); margin: 3px;
+        background-color: var(--secondary-background-color); padding: 8px; border-radius: 8px;
         display: flex; flex-direction: column; justify-content: space-between;
     }
-    .cell-date { font-weight: bold; opacity: 0.6; font-size: 1em; }
-    .cell-pnl { font-weight: 900; font-size: 1.4em; text-align: center; margin: auto; }
+    .cell-date { font-weight: bold; opacity: 0.6; font-size: 0.9em; }
+    .cell-pnl { font-weight: 900; font-size: 1.3em; text-align: center; margin: auto; }
     .win-day { border-top: 4px solid #00C076; background-color: rgba(0, 192, 118, 0.05); }
     .loss-day { border-top: 4px solid #FF4D4D; background-color: rgba(255, 77, 77, 0.05); }
     .win-text { color: #00C076; } .loss-text { color: #FF4D4D; }
@@ -56,9 +56,10 @@ def get_connection():
 
 # --- GESTIÓN DE DATOS ---
 TABS = {'journal': 'Journal', 'accounts': 'Cuentas', 'finance': 'Finanzas', 'objectives': 'Objetivos', 'subs': 'Suscripciones', 'groups': 'Grupos'}
+# AÑADIDO 'Manual_WD' a Cuentas para poder editar los winning days
 COLS = {
     'journal': ['Fecha', 'Cuenta', 'Activo', 'Estrategia', 'Resultado', 'RR', 'PnL', 'Emociones', 'Screenshot', 'Notas'],
-    'accounts': ['Nombre', 'Empresa', 'Tipo', 'Balance_Inicial', 'Balance_Actual', 'Balance_Objetivo', 'Dias_Objetivo', 'Costo', 'Estado', 'Fecha_Creacion'],
+    'accounts': ['Nombre', 'Empresa', 'Tipo', 'Balance_Inicial', 'Balance_Actual', 'Balance_Objetivo', 'Dias_Objetivo', 'Costo', 'Estado', 'Fecha_Creacion', 'Manual_WD'],
     'finance': ['Fecha', 'Tipo', 'Concepto', 'Monto'],
     'objectives': ['ID', 'Tarea', 'Tipo', 'Fecha_Limite', 'Estado', 'Target_Dinero'],
     'subs': ['Servicio', 'Monto', 'Dia_Renovacion'],
@@ -82,7 +83,7 @@ def load_data(key):
         
         # Convertir números
         for col in df.columns:
-            if col in ['PnL', 'RR', 'Monto', 'Balance_Inicial', 'Balance_Actual', 'Balance_Objetivo', 'Costo', 'Target_Dinero', 'Dias_Objetivo', 'Dia_Renovacion']:
+            if col in ['PnL', 'RR', 'Monto', 'Balance_Inicial', 'Balance_Actual', 'Balance_Objetivo', 'Costo', 'Target_Dinero', 'Dias_Objetivo', 'Manual_WD']:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
         return df
     except: return pd.DataFrame(columns=COLS[key])
@@ -106,11 +107,14 @@ df_subs = load_data('subs')
 df_groups = load_data('groups')
 
 # --- UTILS ---
-def kpi_card(title, value, type="currency", color_logic=True):
-    color = "var(--text-color)"
-    if color_logic:
+def kpi_card(title, value, type="currency"):
+    color = "var(--text-color)" # Default color
+    if type != "number":
         color = "#00C076" if value > 0 else "#FF4D4D" if value < 0 else "#F7B924"
-    fmt = f"${value:,.2f}" if type=="currency" else f"{value:.1f}%" if type=="percent" else f"{value}"
+    
+    fmt = f"${value:,.2f}" if type=="currency" else f"{value:.1f}%" if type=="percent" else f"{value:.2f}"
+    if type == "simple": fmt = f"{value}"
+    
     st.markdown(f"""<div class="kpi-card"><div class="kpi-title">{title}</div><div class="kpi-value" style="color:{color}">{fmt}</div></div>""", unsafe_allow_html=True)
 
 # --- NAVEGACIÓN ---
@@ -123,7 +127,9 @@ menu = st.sidebar.radio("Ir a:", ["📊 Dashboard", "🎯 Agenda", "🧠 Insight
 # 1. DASHBOARD
 # ==============================================================================
 if menu == "📊 Dashboard":
-    st.header("Visión General")
+    st.header("Dashboard Principal")
+    
+    # --- FILA 1: META Y FINANCIERO ---
     target = 10000.0
     if not df_objectives.empty:
         meta = df_objectives[df_objectives['Tipo']=='META_ANUAL']
@@ -135,37 +141,49 @@ if menu == "📊 Dashboard":
         payouts = p_df['Monto'].sum()
     
     with st.container(border=True):
-        c1, c2 = st.columns([3, 1])
+        c1, c2 = st.columns([4, 1])
         c1.subheader(f"🎯 Meta Payouts: ${target:,.0f}")
         c1.progress(min(max(payouts/target, 0.0), 1.0))
-        c1.caption(f"Retirado: **${payouts:,.2f}** | Falta: **${target-payouts:,.2f}**")
+        c1.caption(f"Retirado: **${payouts:,.2f}** | Restante: **${target-payouts:,.2f}**")
         with c2:
-            if st.button("Editar Meta"):
-                with st.form("m_f"):
-                    nm = st.number_input("Nuevo Objetivo", value=target)
-                    if st.form_submit_button("Guardar"):
-                        df_objectives = df_objectives[df_objectives['Tipo'] != 'META_ANUAL']
-                        # Fix sintaxis
-                        new_meta = {'ID': 999, 'Tarea': 'Meta', 'Tipo': 'META_ANUAL', 'Fecha_Limite': str(date.today()), 'Estado': 'Active', 'Target_Dinero': nm}
-                        df_objectives = pd.concat([df_objectives, pd.DataFrame([new_meta])], ignore_index=True)
-                        save_data(df_objectives, 'objectives'); st.rerun()
+            with st.popover("Editar Meta"):
+                nm = st.number_input("Nuevo Objetivo", value=target)
+                if st.button("Guardar Meta"):
+                    df_objectives = df_objectives[df_objectives['Tipo'] != 'META_ANUAL']
+                    new_meta = {'ID': 999, 'Tarea': 'Meta', 'Tipo': 'META_ANUAL', 'Fecha_Limite': str(date.today()), 'Estado': 'Active', 'Target_Dinero': nm}
+                    df_objectives = pd.concat([df_objectives, pd.DataFrame([new_meta])], ignore_index=True)
+                    save_data(df_objectives, 'objectives'); st.rerun()
 
-    st.markdown("---")
+    # --- FILA 2: ESTADISTICAS TRADING (DIRECTAS) ---
+    st.markdown("### Rendimiento Operativo")
     if not df_journal.empty:
-        pnl = df_journal['PnL'].sum()
+        # Cálculos Globales
+        total_pnl = df_journal['PnL'].sum()
         wins = len(df_journal[df_journal['Resultado']=='WIN'])
-        wr = (wins/len(df_journal)*100) if len(df_journal)>0 else 0
-        c1, c2, c3, c4 = st.columns(4)
-        with c1: kpi_card("PnL Operativo", pnl)
-        with c2: kpi_card("Win Rate", wr, "percent")
-        with c3: kpi_card("Trades", len(df_journal), "number", False)
-        with c4: kpi_card("Avg RR", df_journal['RR'].mean(), "number", False)
+        total_trades = len(df_journal)
+        win_rate = (wins/total_trades*100) if total_trades > 0 else 0
+        avg_rr = df_journal['RR'].mean()
         
-        df_journal['Fecha'] = pd.to_datetime(df_journal['Fecha'])
-        daily = df_journal.groupby('Fecha')['PnL'].sum().reset_index()
-        fig = px.area(daily, x='Fecha', y='PnL', template="plotly_dark")
+        # Calcular Winning Days Totales (>150$)
+        daily_pnl_global = df_journal.groupby('Fecha')['PnL'].sum()
+        total_winning_days = daily_pnl_global[daily_pnl_global >= 150].count()
+
+        k1, k2, k3, k4 = st.columns(4)
+        with k1: kpi_card("PnL Total", total_pnl, "currency")
+        with k2: kpi_card("Win Rate", win_rate, "percent")
+        with k3: kpi_card("Avg RR", avg_rr, "number") # AHORA SALE EL RR
+        with k4: kpi_card("Winning Days", total_winning_days, "simple") # AHORA SALEN LOS DIAS GANADORES
+
+        # Gráfico Curva
+        st.caption("Curva de Equity")
+        df_sorted = df_journal.sort_values('Fecha')
+        df_sorted['Acumulado'] = df_sorted['PnL'].cumsum()
+        fig = px.area(df_sorted, x='Fecha', y='Acumulado', template="plotly_dark")
         fig.update_traces(line_color='#00C076', fillcolor='rgba(0,192,118,0.1)')
+        fig.update_layout(margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Registra trades para ver estadísticas.")
 
 # ==============================================================================
 # 2. AGENDA
@@ -262,10 +280,18 @@ elif menu == "📓 Diario (Multi)":
             res = c4.selectbox("Resultado", ["WIN", "LOSS", "BE"])
             strat = c5.selectbox("Estrategia", ["RANGOS", "CANALES", "OTRO"])
             
+            c6, c7 = st.columns(2)
+            rr = c6.number_input("Ratio Riesgo/Beneficio (RR)", value=2.0)
+            link = c7.text_input("Link Foto (Gyazo/Lightshot)")
+            
             if st.form_submit_button("Guardar"):
                 rows = []
                 for t in targets:
-                    rows.append({'Fecha': str(d), 'Cuenta': t.strip(), 'Activo': 'NQ', 'Estrategia': strat, 'Resultado': res, 'RR': 0, 'PnL': pnl, 'Emociones': '', 'Screenshot': '', 'Notas': ''})
+                    rows.append({
+                        'Fecha': str(d), 'Cuenta': t.strip(), 'Activo': 'NQ', 'Estrategia': strat, 
+                        'Resultado': res, 'RR': rr, 'PnL': pnl, 'Emociones': '', 
+                        'Screenshot': link, 'Notas': ''
+                    })
                 df_journal = pd.concat([df_journal, pd.DataFrame(rows)], ignore_index=True)
                 save_data(df_journal, 'journal'); st.success("Guardado"); st.rerun()
 
@@ -287,9 +313,22 @@ elif menu == "📓 Diario (Multi)":
                 txt = f"<span class='{'win-text' if pnl>0 else 'loss-text'}'>${pnl:,.0f}</span>" if pnl!=0 else "-"
                 cols[i].markdown(f"<div class='pnl-cell {cls}'><div class='cell-date'>{d}</div><div class='cell-pnl'>{txt}</div></div>", unsafe_allow_html=True)
             else: cols[i].markdown("<div style='min-height:110px'></div>", unsafe_allow_html=True)
+            
+    # TABLA CON FOTOS
+    st.markdown("---")
+    st.subheader("Historial")
+    edited = st.data_editor(
+        df_journal.sort_values('Fecha', ascending=False), 
+        num_rows="dynamic", 
+        use_container_width=True,
+        column_config={
+            "Screenshot": st.column_config.LinkColumn("Ver Foto")
+        }
+    )
+    if st.button("💾 Guardar Cambios Tabla"): save_data(edited, 'journal'); st.success("Guardado."); st.rerun()
 
 # ==============================================================================
-# 6. CUENTAS
+# 6. CUENTAS (AHORA CON COSTES AUTOMATICOS Y EDICION WD)
 # ==============================================================================
 elif menu == "🏦 Cuentas":
     st.header("Gestión de Capital")
@@ -299,25 +338,36 @@ elif menu == "🏦 Cuentas":
         with st.expander("➕ Añadir Cuenta"):
             with st.form("new_acc"):
                 c1, c2, c3 = st.columns(3)
-                n = c1.text_input("Nombre")
-                e = c2.text_input("Empresa")
+                n = c1.text_input("Nombre (ej. Apex 01)")
+                e = c2.text_input("Empresa (ej. Topstep)")
                 t = c3.selectbox("Tipo", ["Examen", "Funded"])
                 c4, c5, c6 = st.columns(3)
                 bi = c4.number_input("Balance Inicial", 50000.0)
                 ba = c5.number_input("Balance Actual", 50000.0)
                 bo = c6.number_input("Objetivo", 53000.0)
-                c7, c8 = st.columns(2)
-                do = c7.number_input("Días Winning", 5)
-                co = c8.number_input("Coste ($)", 0.0)
+                c7, c8, c9 = st.columns(3)
+                do = c7.number_input("Días Winning Objetivo", 5)
+                wd_manual = c8.number_input("Días Winning YA conseguidos", 0)
+                co = c9.number_input("Coste de la prueba ($)", 0.0)
                 
                 if st.form_submit_button("Crear"):
-                    new = pd.DataFrame([{'Nombre': n, 'Empresa': e, 'Tipo': t, 'Balance_Inicial': bi, 'Balance_Actual': ba, 'Balance_Objetivo': bo, 'Dias_Objetivo': do, 'Costo': co, 'Estado': 'Activa', 'Fecha_Creacion': str(date.today())}])
+                    # Crear Cuenta con la columna Manual_WD
+                    new = pd.DataFrame([{
+                        'Nombre': n, 'Empresa': e, 'Tipo': t, 'Balance_Inicial': bi, 'Balance_Actual': ba, 
+                        'Balance_Objetivo': bo, 'Dias_Objetivo': do, 'Costo': co, 'Estado': 'Activa', 
+                        'Fecha_Creacion': str(date.today()), 'Manual_WD': wd_manual
+                    }])
                     df_accounts = pd.concat([df_accounts, new], ignore_index=True)
                     save_data(df_accounts, 'accounts')
+                    
+                    # LOGICA: SI COSTE > 0 -> AÑADIR A FINANZAS
                     if co > 0:
                         fin = pd.DataFrame([{'Fecha': str(date.today()), 'Tipo': 'GASTO (Cuenta)', 'Concepto': f"Compra {n}", 'Monto': -abs(co)}])
-                        df_finance = pd.concat([df_finance, fin], ignore_index=True); save_data(df_finance, 'finance')
-                    st.success("Creada"); st.rerun()
+                        df_finance = pd.concat([df_finance, fin], ignore_index=True)
+                        save_data(df_finance, 'finance')
+                        st.toast(f"💸 Gasto de ${co} registrado en Finanzas.")
+                        
+                    st.success("Cuenta Creada"); st.rerun()
 
         active = df_accounts[df_accounts['Estado']=='Activa']
         if active.empty: st.info("Sin cuentas activas")
@@ -327,32 +377,49 @@ elif menu == "🏦 Cuentas":
                     st.markdown(f"### 💳 {r['Nombre']} <small>({r['Tipo']})</small>", unsafe_allow_html=True)
                     c1, c2, c3 = st.columns(3)
                     
-                    wd = 0
+                    # CÁLCULO WINNING DAYS: AUTOMÁTICO (Journal) + MANUAL (Offset)
+                    auto_wd = 0
                     pnl_j = 0
                     if not df_journal.empty:
                         acc_tr = df_journal[df_journal['Cuenta']==r['Nombre']]
                         if not acc_tr.empty:
                             pnl_j = acc_tr['PnL'].sum()
                             daily = acc_tr.groupby('Fecha')['PnL'].sum()
-                            wd = daily[daily >= 150].count()
+                            auto_wd = daily[daily >= 150].count()
+                    
+                    # Asegurar que Manual_WD existe
+                    manual_wd = r.get('Manual_WD', 0)
+                    total_wd = auto_wd + manual_wd
                     
                     c1.metric("Balance", f"${r['Balance_Actual']:,.2f}", f"PnL Journal: ${pnl_j:,.2f}")
-                    c2.metric("Winning Days", f"{wd}/{int(r['Dias_Objetivo'])}")
+                    c2.metric("Winning Days", f"{total_wd}/{int(r['Dias_Objetivo'])}", f"({auto_wd} Auto + {manual_wd} Manual)")
                     
                     tgt = r['Balance_Objetivo'] - r['Balance_Inicial']
                     curr = r['Balance_Actual'] - r['Balance_Inicial']
                     pg = min(max(curr/tgt, 0.0), 1.0) if tgt!=0 else 0
                     c3.progress(pg, f"Meta: ${tgt:,.0f}")
                     
-                    with st.expander("⚙️ Editar / Payout"):
+                    with st.expander("⚙️ Editar / Borrar"):
                         with st.form(f"ed_{i}"):
-                            nb = st.number_input("Nuevo Balance", value=float(r['Balance_Actual']))
-                            act = st.selectbox("Acción", ["Guardar", "Pasar a Funded", "Archivar (Perdida)", "Archivar (Retirada)"])
-                            if st.form_submit_button("Actualizar"):
+                            c_e1, c_e2 = st.columns(2)
+                            nb = c_e1.number_input("Nuevo Balance", value=float(r['Balance_Actual']))
+                            nm_wd = c_e2.number_input("Ajustar Días Winning Manuales", value=float(manual_wd))
+                            
+                            act = st.selectbox("Cambiar Estado", ["Mantener Activa", "Pasar a Funded", "Archivar (Perdida)", "Archivar (Retirada)"])
+                            
+                            c_btn1, c_btn2 = st.columns(2)
+                            if c_btn1.form_submit_button("💾 Guardar Cambios"):
                                 df_accounts.at[i, 'Balance_Actual'] = nb
+                                df_accounts.at[i, 'Manual_WD'] = nm_wd
                                 if "Funded" in act: df_accounts.at[i, 'Tipo'] = "Funded"
                                 elif "Archivar" in act: df_accounts.at[i, 'Estado'] = "Historico"
                                 save_data(df_accounts, 'accounts'); st.rerun()
+                            
+                            # BOTÓN DE BORRADO DEFINITIVO
+                            if c_btn2.form_submit_button("⚠️ BORRAR CUENTA"):
+                                df_accounts = df_accounts.drop(i)
+                                save_data(df_accounts, 'accounts')
+                                st.warning("Cuenta eliminada"); st.rerun()
 
     with tabs[1]:
         st.subheader("Historial")
@@ -372,7 +439,7 @@ elif menu == "🏦 Cuentas":
         if not df_groups.empty: st.dataframe(df_groups)
 
 # ==============================================================================
-# 7. FINANZAS PRO (RECUPERADO DE V11)
+# 7. FINANZAS PRO
 # ==============================================================================
 elif menu == "💰 Finanzas Pro":
     st.header("Centro Financiero")
