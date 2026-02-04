@@ -82,7 +82,7 @@ def load_data(key):
         
         # Convertir números
         for col in df.columns:
-            if col in ['PnL', 'RR', 'Monto', 'Balance_Inicial', 'Balance_Actual', 'Balance_Objetivo', 'Costo', 'Target_Dinero', 'Dias_Objetivo']:
+            if col in ['PnL', 'RR', 'Monto', 'Balance_Inicial', 'Balance_Actual', 'Balance_Objetivo', 'Costo', 'Target_Dinero', 'Dias_Objetivo', 'Dia_Renovacion']:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
         return df
     except: return pd.DataFrame(columns=COLS[key])
@@ -106,8 +106,10 @@ df_subs = load_data('subs')
 df_groups = load_data('groups')
 
 # --- UTILS ---
-def kpi_card(title, value, type="currency"):
-    color = "#00C076" if value > 0 else "#FF4D4D" if value < 0 else "#F7B924"
+def kpi_card(title, value, type="currency", color_logic=True):
+    color = "var(--text-color)"
+    if color_logic:
+        color = "#00C076" if value > 0 else "#FF4D4D" if value < 0 else "#F7B924"
     fmt = f"${value:,.2f}" if type=="currency" else f"{value:.1f}%" if type=="percent" else f"{value}"
     st.markdown(f"""<div class="kpi-card"><div class="kpi-title">{title}</div><div class="kpi-value" style="color:{color}">{fmt}</div></div>""", unsafe_allow_html=True)
 
@@ -115,7 +117,7 @@ def kpi_card(title, value, type="currency"):
 st.sidebar.title("☁️ Trading OS")
 st.sidebar.caption("✅ Conectado a Google Drive")
 if st.sidebar.button("🔄 Sincronizar"): st.cache_data.clear(); st.rerun()
-menu = st.sidebar.radio("Ir a:", ["📊 Dashboard", "🎯 Agenda", "🧠 Insights", "✅ Checklist", "📓 Diario (Multi)", "🏦 Cuentas", "💰 Finanzas"])
+menu = st.sidebar.radio("Ir a:", ["📊 Dashboard", "🎯 Agenda", "🧠 Insights", "✅ Checklist", "📓 Diario (Multi)", "🏦 Cuentas", "💰 Finanzas Pro"])
 
 # ==============================================================================
 # 1. DASHBOARD
@@ -143,15 +145,8 @@ if menu == "📊 Dashboard":
                     nm = st.number_input("Nuevo Objetivo", value=target)
                     if st.form_submit_button("Guardar"):
                         df_objectives = df_objectives[df_objectives['Tipo'] != 'META_ANUAL']
-                        # CORRECCIÓN DE ERROR: Usamos un diccionario para evitar errores de sintaxis en líneas largas
-                        new_meta = {
-                            'ID': 999, 
-                            'Tarea': 'Meta', 
-                            'Tipo': 'META_ANUAL', 
-                            'Fecha_Limite': str(date.today()), 
-                            'Estado': 'Active', 
-                            'Target_Dinero': nm
-                        }
+                        # Fix sintaxis
+                        new_meta = {'ID': 999, 'Tarea': 'Meta', 'Tipo': 'META_ANUAL', 'Fecha_Limite': str(date.today()), 'Estado': 'Active', 'Target_Dinero': nm}
                         df_objectives = pd.concat([df_objectives, pd.DataFrame([new_meta])], ignore_index=True)
                         save_data(df_objectives, 'objectives'); st.rerun()
 
@@ -163,8 +158,8 @@ if menu == "📊 Dashboard":
         c1, c2, c3, c4 = st.columns(4)
         with c1: kpi_card("PnL Operativo", pnl)
         with c2: kpi_card("Win Rate", wr, "percent")
-        with c3: kpi_card("Trades", len(df_journal), "number")
-        with c4: kpi_card("Avg RR", df_journal['RR'].mean(), "number")
+        with c3: kpi_card("Trades", len(df_journal), "number", False)
+        with c4: kpi_card("Avg RR", df_journal['RR'].mean(), "number", False)
         
         df_journal['Fecha'] = pd.to_datetime(df_journal['Fecha'])
         daily = df_journal.groupby('Fecha')['PnL'].sum().reset_index()
@@ -294,7 +289,7 @@ elif menu == "📓 Diario (Multi)":
             else: cols[i].markdown("<div style='min-height:110px'></div>", unsafe_allow_html=True)
 
 # ==============================================================================
-# 6. CUENTAS (LOGICA COMPLETA)
+# 6. CUENTAS
 # ==============================================================================
 elif menu == "🏦 Cuentas":
     st.header("Gestión de Capital")
@@ -320,7 +315,7 @@ elif menu == "🏦 Cuentas":
                     df_accounts = pd.concat([df_accounts, new], ignore_index=True)
                     save_data(df_accounts, 'accounts')
                     if co > 0:
-                        fin = pd.DataFrame([{'Fecha': str(date.today()), 'Tipo': 'GASTO', 'Concepto': f"Compra {n}", 'Monto': -abs(co)}])
+                        fin = pd.DataFrame([{'Fecha': str(date.today()), 'Tipo': 'GASTO (Cuenta)', 'Concepto': f"Compra {n}", 'Monto': -abs(co)}])
                         df_finance = pd.concat([df_finance, fin], ignore_index=True); save_data(df_finance, 'finance')
                     st.success("Creada"); st.rerun()
 
@@ -332,7 +327,6 @@ elif menu == "🏦 Cuentas":
                     st.markdown(f"### 💳 {r['Nombre']} <small>({r['Tipo']})</small>", unsafe_allow_html=True)
                     c1, c2, c3 = st.columns(3)
                     
-                    # Logica Winning Days
                     wd = 0
                     pnl_j = 0
                     if not df_journal.empty:
@@ -378,11 +372,74 @@ elif menu == "🏦 Cuentas":
         if not df_groups.empty: st.dataframe(df_groups)
 
 # ==============================================================================
-# 7. FINANZAS
+# 7. FINANZAS PRO (RECUPERADO DE V11)
 # ==============================================================================
-elif menu == "💰 Finanzas":
-    st.header("Finanzas")
-    st.info("💡 Edita las filas directamente para corregir.")
-    edited = st.data_editor(df_finance, num_rows="dynamic", use_container_width=True)
-    if st.button("💾 Guardar Finanzas"):
-        save_data(edited, 'finance'); st.success("Guardado"); st.rerun()
+elif menu == "💰 Finanzas Pro":
+    st.header("Centro Financiero")
+    
+    # 1. SUSCRIPCIONES
+    with st.expander("🔄 Gestionar Suscripciones Recurrentes", expanded=False):
+        c1, c2 = st.columns([2, 1])
+        with c1: st.dataframe(df_subs, use_container_width=True)
+        with c2:
+            with st.form("sub_form"):
+                srv = st.text_input("Servicio (ej. Topstep)")
+                mnt = st.number_input("Monto ($)", 0.0)
+                dia = st.number_input("Día cobro (1-31)", 1, 31, 1)
+                if st.form_submit_button("Añadir"): 
+                    new = pd.DataFrame([{'Servicio': srv, 'Monto': mnt, 'Dia_Renovacion': dia}])
+                    df_subs = pd.concat([df_subs, new], ignore_index=True)
+                    save_data(df_subs, 'subs'); st.rerun()
+    
+    if st.button("⚡ Generar Gastos de Este Mes"):
+        today = date.today(); count = 0
+        for _, sub in df_subs.iterrows():
+            exists = False
+            for _, fin in df_finance.iterrows():
+                try: fin_date = pd.to_datetime(fin['Fecha']).date()
+                except: continue
+                if fin_date.month == today.month and fin_date.year == today.year and fin['Concepto'] == sub['Servicio']: exists = True
+            if not exists: 
+                new = pd.DataFrame([{'Fecha': str(today), 'Tipo': 'GASTO (Suscripción)', 'Concepto': sub['Servicio'], 'Monto': -abs(sub['Monto'])}])
+                df_finance = pd.concat([df_finance, new], ignore_index=True)
+                count += 1
+        save_data(df_finance, 'finance'); st.success(f"{count} gastos generados."); st.rerun()
+
+    st.markdown("---")
+    
+    # 2. AÑADIR GASTO/INGRESO MANUAL
+    c1, c2 = st.columns([1, 2])
+    with c1:
+        with st.form("fin_manual"):
+            fd = st.date_input("Fecha", date.today())
+            ft = st.selectbox("Tipo", ["GASTO", "INGRESO (Payout)"])
+            fc = st.text_input("Concepto")
+            fa = st.number_input("Monto ($)", 0.0)
+            if st.form_submit_button("Registrar"):
+                amt = fa if "INGRESO" in ft else -abs(fa)
+                new = pd.DataFrame([{'Fecha': str(fd), 'Tipo': ft, 'Concepto': fc, 'Monto': amt}])
+                df_finance = pd.concat([df_finance, new], ignore_index=True)
+                save_data(df_finance, 'finance'); st.rerun()
+    
+    # 3. DASHBOARD Y TABLA
+    with c2:
+        if not df_finance.empty:
+            income = df_finance[df_finance['Monto'] > 0]['Monto'].sum()
+            expenses = abs(df_finance[df_finance['Monto'] < 0]['Monto'].sum())
+            net = income - expenses
+            roi = ((income - expenses) / expenses * 100) if expenses > 0 else 0
+            
+            k1, k2, k3 = st.columns(3)
+            with k1: kpi_card("Invertido", expenses, "currency")
+            with k2: kpi_card("Retirado", income, "currency")
+            with k3: kpi_card("Neto", net, "currency")
+            
+            st.caption(f"📈 **ROI: {roi:.1f}%**")
+            
+            st.info("💡 Edita la tabla para corregir datos.")
+            edited_fin = st.data_editor(df_finance.sort_values('Fecha', ascending=False), use_container_width=True, num_rows="dynamic", key="fin_ed")
+            if st.button("💾 Guardar Cambios Tabla"):
+                save_data(edited_fin, 'finance')
+                st.success("Guardado"); st.rerun()
+        else:
+            st.info("No hay datos financieros aún.")
