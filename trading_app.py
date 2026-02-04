@@ -415,93 +415,144 @@ elif menu == "📓 Diario (Multi)":
                     st.markdown("<div style='min-height:120px'></div>", unsafe_allow_html=True)
 
 # ==============================================================================
-# 🏦 TAB 6: CUENTAS (COMPLETO V11.1)
+# 🏦 TAB 6: CUENTAS (LOGICA COMPLETA V11 + V14)
 # ==============================================================================
 elif menu == "🏦 Cuentas":
     st.header("Gestión de Capital")
     
     tabs_acc = st.tabs(["📋 Gestión Cuentas", "📜 Historial", "👥 Grupos"])
     
+    # --- SUB-TAB 1: GESTIÓN DE CUENTAS ACTIVAS ---
     with tabs_acc[0]:
+        
+        # FORMULARIO AÑADIR CUENTA (RECUPERADO DE V11)
         with st.expander("➕ Añadir Nueva Cuenta", expanded=False):
             with st.form("acc_f"):
                 c1, c2, c3 = st.columns(3)
                 n = c1.text_input("Nombre (ej. Apex 01)")
                 e = c2.text_input("Empresa (ej. Topstep)")
                 t = c3.selectbox("Tipo", ["Examen", "Funded"])
+                
                 c4, c5, c6 = st.columns(3)
                 bi = c4.number_input("Balance Inicial", value=50000.0)
-                ba = c5.number_input("Balance Actual", value=50000.0)
+                ba = c5.number_input("Balance Actual (Por si ya vas ganando)", value=50000.0)
                 bo = c6.number_input("Balance Objetivo", value=53000.0)
+                
                 c7, c8 = st.columns(2)
                 do = c7.number_input("Días Winning Objetivo", value=5)
                 cost = c8.number_input("Coste ($)", value=0.0)
                 
                 if st.form_submit_button("Crear Cuenta"):
-                    new_acc = pd.DataFrame([{'Nombre': n, 'Empresa': e, 'Tipo': t, 'Balance_Inicial': bi, 'Balance_Actual': ba, 'Balance_Objetivo': bo, 'Dias_Objetivo': do, 'Costo': cost, 'Estado': 'Activa', 'Fecha_Creacion': str(date.today())}])
+                    new_acc = pd.DataFrame([{
+                        'Nombre': n, 'Empresa': e, 'Tipo': t, 
+                        'Balance_Inicial': bi, 'Balance_Actual': ba, 
+                        'Balance_Objetivo': bo, 'Dias_Objetivo': do, 
+                        'Costo': cost, 'Estado': 'Activa', 
+                        'Fecha_Creacion': str(date.today())
+                    }])
                     df_accounts = pd.concat([df_accounts, new_acc], ignore_index=True)
                     save_data(df_accounts, 'accounts')
+                    
                     if cost > 0:
-                        new_exp = pd.DataFrame([{'Fecha': str(date.today()), 'Tipo': 'GASTO (Cuenta)', 'Concepto': f"Compra {n} ({e})", 'Monto': -abs(cost)}])
-                        df_finance = pd.concat([df_finance, new_exp], ignore_index=True); save_data(df_finance, 'finance')
-                    st.success(f"Cuenta {n} creada."); st.rerun()
+                        new_exp = pd.DataFrame([{
+                            'Fecha': str(date.today()), 'Tipo': 'GASTO (Cuenta)', 
+                            'Concepto': f"Compra {n} ({e})", 'Monto': -abs(cost)
+                        }])
+                        df_finance = pd.concat([df_finance, new_exp], ignore_index=True)
+                        save_data(df_finance, 'finance')
+                        
+                    st.success(f"Cuenta {n} creada y gasto registrado."); st.rerun()
 
         st.markdown("---")
+        
+        # MOSTRAR CUENTAS ACTIVAS
         active_accounts = df_accounts[df_accounts['Estado'] == 'Activa']
-        if active_accounts.empty: st.info("No tienes cuentas activas.")
+        
+        if active_accounts.empty:
+            st.info("No tienes cuentas activas. Crea una arriba.")
         else:
             for index, row in active_accounts.iterrows():
                 with st.container(border=True):
+                    # CABECERA
                     st.markdown(f"### 💳 {row['Nombre']} <span style='font-size:0.8em; opacity:0.6'>({row['Empresa']} - {row['Tipo']})</span>", unsafe_allow_html=True)
+                    
                     col_met1, col_met2, col_met3 = st.columns(3)
                     
-                    # Logica PnL y Winning Days
+                    # 1. BALANCE ACTUAL
                     pnl_journal = 0.0
+                    if not df_journal.empty:
+                        pnl_journal = df_journal[df_journal['Cuenta'] == row['Nombre']]['PnL'].sum()
+                    
+                    col_met1.metric("Balance Actual", f"${row['Balance_Actual']:,.2f}", f"PnL Journal: ${pnl_journal:,.2f}")
+                    
+                    # 2. PROGRESO WINNING DAYS (Calculado Auto)
                     winning_days = 0
                     if not df_journal.empty:
                         trades_acc = df_journal[df_journal['Cuenta'] == row['Nombre']]
                         if not trades_acc.empty:
-                            pnl_journal = trades_acc['PnL'].sum()
                             daily_pnl = trades_acc.groupby('Fecha')['PnL'].sum()
-                            winning_days = daily_pnl[daily_pnl >= 150].count()
-
-                    col_met1.metric("Balance Actual", f"${row['Balance_Actual']:,.2f}", f"PnL Journal: ${pnl_journal:,.2f}")
+                            winning_days = daily_pnl[daily_pnl >= 150].count() # Umbral $150
+                    
                     col_met2.metric("Winning Days (+150$)", f"{winning_days}/{int(row['Dias_Objetivo'])}")
                     
+                    # 3. PROGRESO DINERO
                     target_money = row['Balance_Objetivo'] - row['Balance_Inicial']
                     current_money = row['Balance_Actual'] - row['Balance_Inicial']
                     prog_money = min(max(current_money / target_money, 0.0), 1.0) if target_money > 0 else 0
                     col_met3.progress(prog_money, f"Objetivo: ${current_money:,.0f} / ${target_money:,.0f}")
 
+                    # --- ZONA DE EDICIÓN Y ACCIONES ---
                     with st.expander("⚙️ Editar / Payout"):
                         with st.form(f"edit_{index}"):
                             c_e1, c_e2 = st.columns(2)
                             new_bal = c_e1.number_input("Editar Balance Actual", value=float(row['Balance_Actual']), step=100.0, key=f"bal_{index}")
-                            action = c_e2.selectbox("Acción", ["Mantener Activa", "Pasar a Funded 🏆", "Archivar (Perdida) 💀", "Archivar (Retirada) 🏁"], key=f"act_{index}")
-                            if st.form_submit_button("Actualizar"):
+                            action = c_e2.selectbox("Acción Estado", ["Mantener Activa", "Pasar a Funded 🏆", "Archivar (Perdida) 💀", "Archivar (Retirada) 🏁"], key=f"act_{index}")
+                            
+                            if st.form_submit_button("Actualizar Cuenta"):
+                                # Actualizar Balance
                                 df_accounts.at[index, 'Balance_Actual'] = new_bal
-                                if action == "Pasar a Funded 🏆": df_accounts.at[index, 'Tipo'] = "Funded"
-                                elif "Archivar" in action: df_accounts.at[index, 'Estado'] = "Historico"
-                                save_data(df_accounts, 'accounts'); st.rerun()
+                                
+                                # Cambio de Estado
+                                if action == "Pasar a Funded 🏆":
+                                    df_accounts.at[index, 'Tipo'] = "Funded"
+                                    st.success(f"¡Felicidades! {row['Nombre']} ahora es Funded.")
+                                    
+                                elif "Archivar" in action:
+                                    df_accounts.at[index, 'Estado'] = "Historico"
+                                    st.warning(f"Cuenta movida al historial.")
+                                
+                                save_data(df_accounts, 'accounts')
+                                st.rerun()
 
+    # --- SUB-TAB 2: HISTORIAL ---
     with tabs_acc[1]:
         st.subheader("Cementerio y Hall de la Fama")
         history_accounts = df_accounts[df_accounts['Estado'] != 'Activa']
-        if history_accounts.empty: st.info("No hay cuentas en el historial.")
+        if history_accounts.empty:
+            st.info("No hay cuentas en el historial.")
         else:
             st.dataframe(history_accounts, use_container_width=True)
+            if st.button("🗑️ Borrar Historial Definitivamente"):
+                # Mantener solo activas
+                df_accounts = df_accounts[df_accounts['Estado'] == 'Activa']
+                save_data(df_accounts, 'accounts')
+                st.rerun()
 
+    # --- SUB-TAB 3: GRUPOS ---
     with tabs_acc[2]:
         st.subheader("Crear Grupo de Réplica")
         with st.form("grp_form"):
             g_name = st.text_input("Nombre del Grupo")
+            # Solo mostrar cuentas activas para agrupar
             active_names = df_accounts[df_accounts['Estado'] == 'Activa']['Nombre'].unique()
             g_accs = st.multiselect("Selecciona Cuentas", active_names)
+            
             if st.form_submit_button("Guardar Grupo"):
                 if g_name and g_accs:
                     new_grp = pd.DataFrame([{'Nombre_Grupo': g_name, 'Cuentas': ",".join(g_accs)}])
                     df_groups = pd.concat([df_groups, new_grp], ignore_index=True)
                     save_data(df_groups, 'groups'); st.success("Grupo creado."); st.rerun()
+        
         if not df_groups.empty: st.dataframe(df_groups, use_container_width=True)
 
 # ==============================================================================
