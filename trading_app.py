@@ -28,19 +28,30 @@ st.markdown("""
     }
     .kpi-value { font-size: 28px; font-weight: 800; color: var(--text-color); line-height: 1.1; }
     .stProgress > div > div > div > div { background-color: #00C076; }
+    
+    /* CALENDARIO */
     .cal-header { font-weight: bold; text-align: center; padding: 8px; opacity: 0.8; text-transform: uppercase; font-size: 0.85em; }
     .pnl-cell, .calendar-day-agenda {
         min-height: 100px; border: 1px solid rgba(128, 128, 128, 0.2); margin: 3px;
-        background-color: var(--secondary-background-color); padding: 8px; border-radius: 8px;
-        display: flex; flex-direction: column; justify-content: space-between;
+        background-color: var(--secondary-background-color); padding: 5px; border-radius: 8px;
+        display: flex; flex-direction: column; justify-content: flex-start; /* Alineado arriba */
     }
-    .cell-date { font-weight: bold; opacity: 0.6; font-size: 0.9em; }
+    .cell-date { font-weight: bold; opacity: 0.6; font-size: 0.9em; margin-bottom: 5px; text-align: right; }
     .cell-pnl { font-weight: 900; font-size: 1.3em; text-align: center; margin: auto; }
+    
     .win-day { border-top: 4px solid #00C076; background-color: rgba(0, 192, 118, 0.05); }
     .loss-day { border-top: 4px solid #FF4D4D; background-color: rgba(255, 77, 77, 0.05); }
     .win-text { color: #00C076; } .loss-text { color: #FF4D4D; }
-    .event-tag { padding: 3px 6px; border-radius: 4px; margin-bottom: 2px; font-size: 10px; color: white; font-weight: bold; }
-    .evt-bill { background-color: #FF4D4D; } .evt-task { background-color: #3B8ED0; }
+    
+    /* ETIQUETAS CALENDARIO */
+    .event-tag { 
+        padding: 2px 5px; border-radius: 4px; margin-bottom: 2px; 
+        font-size: 10px; color: white; font-weight: bold; width: 100%;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .evt-bill { background-color: #FF4D4D; } 
+    .evt-task { background-color: #3B8ED0; }
+    .evt-done { background-color: #A0A0A0; text-decoration: line-through; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -56,7 +67,6 @@ def get_connection():
 
 # --- GESTIÓN DE DATOS ---
 TABS = {'journal': 'Journal', 'accounts': 'Cuentas', 'finance': 'Finanzas', 'objectives': 'Objetivos', 'subs': 'Suscripciones', 'groups': 'Grupos'}
-# AÑADIDO 'Manual_WD' a Cuentas para poder editar los winning days
 COLS = {
     'journal': ['Fecha', 'Cuenta', 'Activo', 'Estrategia', 'Resultado', 'RR', 'PnL', 'Emociones', 'Screenshot', 'Notas'],
     'accounts': ['Nombre', 'Empresa', 'Tipo', 'Balance_Inicial', 'Balance_Actual', 'Balance_Objetivo', 'Dias_Objetivo', 'Costo', 'Estado', 'Fecha_Creacion', 'Manual_WD'],
@@ -83,7 +93,7 @@ def load_data(key):
         
         # Convertir números
         for col in df.columns:
-            if col in ['PnL', 'RR', 'Monto', 'Balance_Inicial', 'Balance_Actual', 'Balance_Objetivo', 'Costo', 'Target_Dinero', 'Dias_Objetivo', 'Manual_WD']:
+            if col in ['PnL', 'RR', 'Monto', 'Balance_Inicial', 'Balance_Actual', 'Balance_Objetivo', 'Costo', 'Target_Dinero', 'Dias_Objetivo', 'Manual_WD', 'Dia_Renovacion']:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
         return df
     except: return pd.DataFrame(columns=COLS[key])
@@ -108,13 +118,11 @@ df_groups = load_data('groups')
 
 # --- UTILS ---
 def kpi_card(title, value, type="currency"):
-    color = "var(--text-color)" # Default color
+    color = "var(--text-color)"
     if type != "number":
         color = "#00C076" if value > 0 else "#FF4D4D" if value < 0 else "#F7B924"
-    
     fmt = f"${value:,.2f}" if type=="currency" else f"{value:.1f}%" if type=="percent" else f"{value:.2f}"
     if type == "simple": fmt = f"{value}"
-    
     st.markdown(f"""<div class="kpi-card"><div class="kpi-title">{title}</div><div class="kpi-value" style="color:{color}">{fmt}</div></div>""", unsafe_allow_html=True)
 
 # --- NAVEGACIÓN ---
@@ -129,7 +137,6 @@ menu = st.sidebar.radio("Ir a:", ["📊 Dashboard", "🎯 Agenda", "🧠 Insight
 if menu == "📊 Dashboard":
     st.header("Dashboard Principal")
     
-    # --- FILA 1: META Y FINANCIERO ---
     target = 10000.0
     if not df_objectives.empty:
         meta = df_objectives[df_objectives['Tipo']=='META_ANUAL']
@@ -154,27 +161,22 @@ if menu == "📊 Dashboard":
                     df_objectives = pd.concat([df_objectives, pd.DataFrame([new_meta])], ignore_index=True)
                     save_data(df_objectives, 'objectives'); st.rerun()
 
-    # --- FILA 2: ESTADISTICAS TRADING (DIRECTAS) ---
     st.markdown("### Rendimiento Operativo")
     if not df_journal.empty:
-        # Cálculos Globales
         total_pnl = df_journal['PnL'].sum()
         wins = len(df_journal[df_journal['Resultado']=='WIN'])
         total_trades = len(df_journal)
         win_rate = (wins/total_trades*100) if total_trades > 0 else 0
         avg_rr = df_journal['RR'].mean()
-        
-        # Calcular Winning Days Totales (>150$)
         daily_pnl_global = df_journal.groupby('Fecha')['PnL'].sum()
         total_winning_days = daily_pnl_global[daily_pnl_global >= 150].count()
 
         k1, k2, k3, k4 = st.columns(4)
         with k1: kpi_card("PnL Total", total_pnl, "currency")
         with k2: kpi_card("Win Rate", win_rate, "percent")
-        with k3: kpi_card("Avg RR", avg_rr, "number") # AHORA SALE EL RR
-        with k4: kpi_card("Winning Days", total_winning_days, "simple") # AHORA SALEN LOS DIAS GANADORES
+        with k3: kpi_card("Avg RR", avg_rr, "number")
+        with k4: kpi_card("Winning Days", total_winning_days, "simple")
 
-        # Gráfico Curva
         st.caption("Curva de Equity")
         df_sorted = df_journal.sort_values('Fecha')
         df_sorted['Acumulado'] = df_sorted['PnL'].cumsum()
@@ -186,43 +188,91 @@ if menu == "📊 Dashboard":
         st.info("Registra trades para ver estadísticas.")
 
 # ==============================================================================
-# 2. AGENDA
+# 2. AGENDA (MEJORADA: SELECTOR FECHA + VISUALIZACION CALENDARIO)
 # ==============================================================================
 elif menu == "🎯 Agenda":
     st.header("Agenda")
     c1, c2 = st.columns([1, 2])
+    
     with c1:
+        st.subheader("Nueva Tarea")
+        # --- FORMULARIO MEJORADO: AHORA PIDE FECHA ---
         with st.form("add_obj"):
-            t = st.text_input("Tarea")
-            if st.form_submit_button("Añadir"):
-                new = pd.DataFrame([{'ID': len(df_objectives)+1, 'Tarea': t, 'Tipo': 'Diario', 'Fecha_Limite': str(date.today()), 'Estado': 'Pendiente', 'Target_Dinero': 0}])
-                df_objectives = pd.concat([df_objectives, new], ignore_index=True)
-                save_data(df_objectives, 'objectives'); st.rerun()
+            task_text = st.text_input("Descripción de la Tarea")
+            task_date = st.date_input("Fecha Objetivo", date.today())
+            
+            if st.form_submit_button("Añadir Tarea"):
+                if task_text:
+                    new = pd.DataFrame([{
+                        'ID': len(df_objectives)+1, 
+                        'Tarea': task_text, 
+                        'Tipo': 'Diario', 
+                        'Fecha_Limite': str(task_date), # Guardamos la fecha seleccionada
+                        'Estado': 'Pendiente', 
+                        'Target_Dinero': 0
+                    }])
+                    df_objectives = pd.concat([df_objectives, new], ignore_index=True)
+                    save_data(df_objectives, 'objectives')
+                    st.success("Tarea agendada")
+                    st.rerun()
+                else:
+                    st.error("Escribe una descripción")
         
+        st.divider()
         st.subheader("Pendientes")
-        tasks = df_objectives[(df_objectives['Tipo']!='META_ANUAL') & (df_objectives['Estado']!='Hecho')]
-        if not tasks.empty:
-            for i, r in tasks.iterrows():
-                if st.checkbox(r['Tarea'], key=f"t_{i}"):
+        # Mostrar solo las pendientes que NO sean la meta anual
+        tasks_pending = df_objectives[(df_objectives['Tipo']!='META_ANUAL') & (df_objectives['Estado']!='Hecho')]
+        
+        if not tasks_pending.empty:
+            # Ordenar por fecha para ver lo urgente primero
+            tasks_pending = tasks_pending.sort_values('Fecha_Limite')
+            
+            for i, r in tasks_pending.iterrows():
+                # Checkbox para marcar como hecho
+                is_done = st.checkbox(f"**{r['Fecha_Limite']}**: {r['Tarea']}", key=f"t_{i}")
+                if is_done:
                     df_objectives.at[i, 'Estado'] = 'Hecho'
-                    save_data(df_objectives, 'objectives'); st.rerun()
-        else: st.info("Todo hecho ✅")
+                    save_data(df_objectives, 'objectives')
+                    st.rerun()
+        else: 
+            st.info("¡Todo limpio! No hay tareas pendientes.")
 
     with c2:
-        st.subheader("Calendario")
+        st.subheader(f"Calendario: {datetime.now().strftime('%B')}")
+        
+        # Preparar datos para el calendario
         cal = calendar.monthcalendar(datetime.now().year, datetime.now().month)
         cols = st.columns(7)
-        dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+        dias = ['LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB', 'DOM']
         for i, c in enumerate(cols): c.markdown(f"<div class='cal-header'>{dias[i]}</div>", unsafe_allow_html=True)
+        
         for week in cal:
             cols = st.columns(7)
             for i, d in enumerate(week):
-                if d!=0:
-                    evts = ""
-                    for _, s in df_subs.iterrows():
-                        if int(s['Dia_Renovacion']) == d: evts += f"<span class='event-tag evt-bill'>{s['Servicio']}</span>"
-                    cols[i].markdown(f"<div class='calendar-day-agenda'><div class='cell-date'>{d}</div>{evts}</div>", unsafe_allow_html=True)
-                else: cols[i].markdown("<div style='min-height:110px'></div>", unsafe_allow_html=True)
+                with cols[idx := i]:
+                    if d != 0:
+                        current_date_str = str(date(datetime.now().year, datetime.now().month, d))
+                        html_evts = ""
+                        
+                        # 1. Buscar TAREAS para este día
+                        day_tasks = df_objectives[df_objectives['Fecha_Limite'] == current_date_str]
+                        for _, t in day_tasks.iterrows():
+                            # Estilo diferente si está hecha o pendiente
+                            style_class = "evt-task" if t['Estado'] != 'Hecho' else "evt-done"
+                            html_evts += f"<span class='event-tag {style_class}'>{t['Tarea']}</span>"
+                        
+                        # 2. Buscar PAGOS (Suscripciones) para este día
+                        for _, s in df_subs.iterrows():
+                            if int(s['Dia_Renovacion']) == d:
+                                html_evts += f"<span class='event-tag evt-bill'>💸 {s['Servicio']}</span>"
+
+                        st.markdown(f"""
+                        <div class='calendar-day-agenda'>
+                            <div class='cell-date'>{d}</div>
+                            {html_evts}
+                        </div>""", unsafe_allow_html=True)
+                    else:
+                        st.markdown("<div style='min-height:100px'></div>", unsafe_allow_html=True)
 
 # ==============================================================================
 # 3. INSIGHTS
@@ -314,21 +364,18 @@ elif menu == "📓 Diario (Multi)":
                 cols[i].markdown(f"<div class='pnl-cell {cls}'><div class='cell-date'>{d}</div><div class='cell-pnl'>{txt}</div></div>", unsafe_allow_html=True)
             else: cols[i].markdown("<div style='min-height:110px'></div>", unsafe_allow_html=True)
             
-    # TABLA CON FOTOS
     st.markdown("---")
     st.subheader("Historial")
     edited = st.data_editor(
         df_journal.sort_values('Fecha', ascending=False), 
         num_rows="dynamic", 
         use_container_width=True,
-        column_config={
-            "Screenshot": st.column_config.LinkColumn("Ver Foto")
-        }
+        column_config={"Screenshot": st.column_config.LinkColumn("Ver Foto")}
     )
     if st.button("💾 Guardar Cambios Tabla"): save_data(edited, 'journal'); st.success("Guardado."); st.rerun()
 
 # ==============================================================================
-# 6. CUENTAS (AHORA CON COSTES AUTOMATICOS Y EDICION WD)
+# 6. CUENTAS
 # ==============================================================================
 elif menu == "🏦 Cuentas":
     st.header("Gestión de Capital")
@@ -348,10 +395,9 @@ elif menu == "🏦 Cuentas":
                 c7, c8, c9 = st.columns(3)
                 do = c7.number_input("Días Winning Objetivo", 5)
                 wd_manual = c8.number_input("Días Winning YA conseguidos", 0)
-                co = c9.number_input("Coste de la prueba ($)", 0.0)
+                co = c9.number_input("Coste ($)", 0.0)
                 
                 if st.form_submit_button("Crear"):
-                    # Crear Cuenta con la columna Manual_WD
                     new = pd.DataFrame([{
                         'Nombre': n, 'Empresa': e, 'Tipo': t, 'Balance_Inicial': bi, 'Balance_Actual': ba, 
                         'Balance_Objetivo': bo, 'Dias_Objetivo': do, 'Costo': co, 'Estado': 'Activa', 
@@ -359,14 +405,10 @@ elif menu == "🏦 Cuentas":
                     }])
                     df_accounts = pd.concat([df_accounts, new], ignore_index=True)
                     save_data(df_accounts, 'accounts')
-                    
-                    # LOGICA: SI COSTE > 0 -> AÑADIR A FINANZAS
                     if co > 0:
                         fin = pd.DataFrame([{'Fecha': str(date.today()), 'Tipo': 'GASTO (Cuenta)', 'Concepto': f"Compra {n}", 'Monto': -abs(co)}])
                         df_finance = pd.concat([df_finance, fin], ignore_index=True)
                         save_data(df_finance, 'finance')
-                        st.toast(f"💸 Gasto de ${co} registrado en Finanzas.")
-                        
                     st.success("Cuenta Creada"); st.rerun()
 
         active = df_accounts[df_accounts['Estado']=='Activa']
@@ -377,7 +419,6 @@ elif menu == "🏦 Cuentas":
                     st.markdown(f"### 💳 {r['Nombre']} <small>({r['Tipo']})</small>", unsafe_allow_html=True)
                     c1, c2, c3 = st.columns(3)
                     
-                    # CÁLCULO WINNING DAYS: AUTOMÁTICO (Journal) + MANUAL (Offset)
                     auto_wd = 0
                     pnl_j = 0
                     if not df_journal.empty:
@@ -387,7 +428,6 @@ elif menu == "🏦 Cuentas":
                             daily = acc_tr.groupby('Fecha')['PnL'].sum()
                             auto_wd = daily[daily >= 150].count()
                     
-                    # Asegurar que Manual_WD existe
                     manual_wd = r.get('Manual_WD', 0)
                     total_wd = auto_wd + manual_wd
                     
@@ -404,7 +444,6 @@ elif menu == "🏦 Cuentas":
                             c_e1, c_e2 = st.columns(2)
                             nb = c_e1.number_input("Nuevo Balance", value=float(r['Balance_Actual']))
                             nm_wd = c_e2.number_input("Ajustar Días Winning Manuales", value=float(manual_wd))
-                            
                             act = st.selectbox("Cambiar Estado", ["Mantener Activa", "Pasar a Funded", "Archivar (Perdida)", "Archivar (Retirada)"])
                             
                             c_btn1, c_btn2 = st.columns(2)
@@ -415,7 +454,6 @@ elif menu == "🏦 Cuentas":
                                 elif "Archivar" in act: df_accounts.at[i, 'Estado'] = "Historico"
                                 save_data(df_accounts, 'accounts'); st.rerun()
                             
-                            # BOTÓN DE BORRADO DEFINITIVO
                             if c_btn2.form_submit_button("⚠️ BORRAR CUENTA"):
                                 df_accounts = df_accounts.drop(i)
                                 save_data(df_accounts, 'accounts')
@@ -444,7 +482,6 @@ elif menu == "🏦 Cuentas":
 elif menu == "💰 Finanzas Pro":
     st.header("Centro Financiero")
     
-    # 1. SUSCRIPCIONES
     with st.expander("🔄 Gestionar Suscripciones Recurrentes", expanded=False):
         c1, c2 = st.columns([2, 1])
         with c1: st.dataframe(df_subs, use_container_width=True)
@@ -474,7 +511,6 @@ elif menu == "💰 Finanzas Pro":
 
     st.markdown("---")
     
-    # 2. AÑADIR GASTO/INGRESO MANUAL
     c1, c2 = st.columns([1, 2])
     with c1:
         with st.form("fin_manual"):
@@ -488,7 +524,6 @@ elif menu == "💰 Finanzas Pro":
                 df_finance = pd.concat([df_finance, new], ignore_index=True)
                 save_data(df_finance, 'finance'); st.rerun()
     
-    # 3. DASHBOARD Y TABLA
     with c2:
         if not df_finance.empty:
             income = df_finance[df_finance['Monto'] > 0]['Monto'].sum()
@@ -500,7 +535,6 @@ elif menu == "💰 Finanzas Pro":
             with k1: kpi_card("Invertido", expenses, "currency")
             with k2: kpi_card("Retirado", income, "currency")
             with k3: kpi_card("Neto", net, "currency")
-            
             st.caption(f"📈 **ROI: {roi:.1f}%**")
             
             st.info("💡 Edita la tabla para corregir datos.")
